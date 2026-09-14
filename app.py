@@ -87,38 +87,40 @@ if menu == "Customer Tracking View":
     if st.button("Track Shipment"):
         if search_id:
             df = fetch_local_data()
-            result = df[df["tracking_number"] == search_id] if not df.empty else pd.DataFrame()
             
-            if not result.empty:
-                st.success("Shipment Located!")
-                status = result.iloc[0]["status"]
-                cust_name = result.iloc[0]["customer_name"]
-                details = result.iloc[0]["parcel_details"]
-                date_created = result.iloc[0]["date_created"]
+            if not df.empty:
+                result = df[df["tracking_number"] == search_id]
                 
-                st.info(f"📍 **Current Location Status:** {status}")
-                
-                try:
-                    lat = float(result.iloc[0]["latitude"])
-                    lon = float(result.iloc[0]["longitude"])
-                    if lat != 0.0 and lon != 0.0:
-                        st.markdown("### 🗺️ Current Pinned Location Map")
-                        map_df = pd.DataFrame({"latitude": [lat], "longitude": [lon]})
-                        st.map(map_df, zoom=14)
-                except:
-                    pass
-                
-                with st.expander("📄 View Shipment Manifest Details", expanded=True):
-                    st.write(f"**Recipient/Customer:** {cust_name}")
-                    st.write(f"**Description & Destination:** {details}")
-                    st.write(f"**Dispatch Date:** {date_created}")
+                if not result.empty:
+                    st.success("Shipment Located!")
+                    status = result.iloc[0]["status"]
+                    cust_name = result.iloc[0]["customer_name"]
+                    details = result.iloc[0]["parcel_details"]
+                    date_created = result.iloc[0]["date_created"]
                     
-                st.markdown("---")
-                st.markdown("### 🖨️ Customer Copy Receipt")
-                receipt_html = build_receipt_html(search_id, cust_name, details, date_created, status)
-                st.components.v1.html(receipt_html, height=420, scrolling=True)
+                    st.info(f"📍 **Current Location Status:** {status}")
+                    
+                    # Safe map calculation block with zero indentation vulnerabilities
+                    lat_val = result.iloc[0]["latitude"]
+                    lon_val = result.iloc[0]["longitude"]
+                    if pd.notna(lat_val) and pd.notna(lon_val) and lat_val != 0.0 and lon_val != 0.0:
+                        st.markdown("### 🗺️ Current Pinned Location Map")
+                        map_df = pd.DataFrame({"latitude": [float(lat_val)], "longitude": [float(lon_val)]})
+                        st.map(map_df, zoom=14)
+                    
+                    with st.expander("📄 View Shipment Manifest Details", expanded=True):
+                        st.write(f"**Recipient/Customer:** {cust_name}")
+                        st.write(f"**Description & Destination:** {details}")
+                        st.write(f"**Dispatch Date:** {date_created}")
+                        
+                    st.markdown("---")
+                    st.markdown("### 🖨️ Customer Copy Receipt")
+                    receipt_html = build_receipt_html(search_id, cust_name, details, date_created, status)
+                    st.components.v1.html(receipt_html, height=420, scrolling=True)
+                else:
+                    st.error("Tracking number not recognized by World Link. Please verify your number.")
             else:
-                st.error("Tracking number not recognized by World Link. Please verify your number.")
+                st.error("No database records found. Please log a parcel first.")
         else:
             st.warning("Please type in a tracking number first.")
 
@@ -156,7 +158,7 @@ elif menu == "Admin / Dispatch Dashboard":
                     except:
                         lat_val, lon_val = 0.0, 0.0
                     
-                    # Direct, instant database logging
+                    # Direct, instant local database logging
                     conn = sqlite3.connect("world_link_local.db")
                     cursor = conn.cursor()
                     cursor.execute("""
@@ -208,10 +210,3 @@ elif menu == "Admin / Dispatch Dashboard":
             with col3:
                 update_lat = st.text_input("Current Pin Latitude", value=str(current_row.iloc[0]["latitude"]))
             with col4:
-                update_lon = st.text_input("Current Pin Longitude", value=str(current_row.iloc[0]["longitude"]))
-            
-            if st.button("Commit Status & Pin Update"):
-                try:
-                    u_lat = float(update_lat)
-                    u_lon = float(update_lon)
-                except:
