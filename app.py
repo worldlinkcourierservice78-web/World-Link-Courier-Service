@@ -76,16 +76,16 @@ if menu == "Customer Tracking View":
             
             if not result.empty:
                 st.success("Shipment Located!")
-                status = result.iloc[0]["status"]
-                cust_name = result.iloc[0]["customer_name"]
-                details = result.iloc[0]["parcel_details"]
-                date_created = result.iloc[0]["date_created"]
+                status = result.iloc["status"]
+                cust_name = result.iloc["customer_name"]
+                details = result.iloc["parcel_details"]
+                date_created = result.iloc["date_created"]
                 
                 st.info(f"**Current Status:** {status}")
                 
                 try:
-                    lat = float(result.iloc[0]["latitude"])
-                    lon = float(result.iloc[0]["longitude"])
+                    lat = float(result.iloc["latitude"])
+                    lon = float(result.iloc["longitude"])
                     st.markdown("### 🗺️ Live Delivery Destination Map")
                     map_df = pd.DataFrame({"latitude": [lat], "longitude": [lon]})
                     st.map(map_df, zoom=12)
@@ -112,8 +112,8 @@ elif menu == "Admin / Dispatch Dashboard":
     # Secret Password Field in Sidebar
     admin_password = st.sidebar.text_input("Enter Admin Password", type="password")
     
-    # 🔑 CHOOSE YOUR PASSWORD HERE: Change "admin123" to any password you want
-    if admin_password == "admin123":
+    # 🔑 NEW SECURE PASSWORD APPLIED BELOW:
+    if admin_password == "Mbappe7979":
         st.subheader("🛠️ World Link Operations Dashboard")
         
         st.markdown("### ➕ Register New Customer Parcel")
