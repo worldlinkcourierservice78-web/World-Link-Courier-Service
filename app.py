@@ -1,41 +1,13 @@
 import streamlit as st
-import pandas as pd
 import random
 import string
-import urllib.parse
-import urllib.request
-import json
 from datetime import datetime
 
-# --- 🌐 PERMANENT SUPABASE CLOUD DATABASE SETUP ---
-# Your unique World Link Project ID is now completely integrated below:
-SUPABASE_URL = "https://supabase.co"
-SUPABASE_KEY = "PASTE_YOUR_COPIED_ANON_PUBLIC_KEY_HERE"
-
-def fetch_cloud_data():
-    try:
-        url = f"{SUPABASE_URL}/rest/v1/parcels?select=*"
-        req = urllib.request.Request(url)
-        req.add_header("apikey", SUPABASE_KEY)
-        req.add_header("Authorization", f"Bearer {SUPABASE_KEY}")
-        
-        with urllib.request.urlopen(req, timeout=5) as response:
-            data = json.loads(response.read().decode())
-            return pd.DataFrame(data)
-    except Exception as e:
-        return pd.DataFrame()
-
 def generate_tracking_id():
-    df = fetch_cloud_data()
-    existing_ids = df["tracking_number"].values if not df.empty and "tracking_number" in df.columns else []
-    while True:
-        chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        tracking_id = f"WL-{chars}"
-        if tracking_id not in existing_ids:
-            return tracking_id
+    chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    return f"WL-{chars}"
 
-# PREMIUM BUSINESS RECEIPT LAYOUT ENGINE
-def build_premium_receipt(track_id, name, details, date, status, s_name, s_addr, current_loc="Main Sorting Hub"):
+def build_premium_receipt(track_id, name, details, date, status, s_name, s_addr, current_loc):
     return f"""
     <div style="background-color: #ffffff; color: #1e293b; padding: 25px; border-radius: 12px; max-width: 440px; margin: 10px auto; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-top: 8px solid #0056b3; border-bottom: 8px solid #0056b3;">
         <div style="text-align: center; margin-bottom: 20px;">
@@ -67,7 +39,6 @@ def build_premium_receipt(track_id, name, details, date, status, s_name, s_addr,
     </div>
     """
 
-# --- STREAMLIT UI CONFIGURATION ---
 st.set_page_config(page_title="World Link Courier Service", layout="centered", page_icon="📦")
 st.title("🌐 World Link Courier Service")
 st.markdown("##### *Fast, Reliable, and Secure Global Tracking Portal*")
@@ -76,38 +47,23 @@ menu = st.sidebar.radio("Navigation Portal", ["Customer Tracking View", "Admin /
 
 # ----------------- CUSTOMER VIEW -----------------
 if menu == "Customer Tracking View":
-    st.subheader("🔍 Track Your Shipment")
-    search_id = st.text_input("Enter your tracking number (e.g., WL-XXXXXX):").strip().upper()
-    if st.button("Track Shipment"):
-        if search_id:
-            df = fetch_cloud_data()
-            result = df[df["tracking_number"] == search_id] if not df.empty and "tracking_number" in df.columns else pd.DataFrame()
-            if not result.empty:
-                st.success("Shipment Located!")
-                status_val = str(result.iloc[0]["status"])
-                name_val = str(result.iloc[0]["customer_name"])
-                details_val = str(result.iloc[0]["parcel_details"])
-                date_val = str(result.iloc[0]["date_created"])
-                s_name_val = str(result.iloc[0]["sender_name"]) if "sender_name" in df.columns else "N/A"
-                s_addr_val = str(result.iloc[0]["sender_address"]) if "sender_address" in df.columns else "N/A"
-                loc_val = str(result.iloc[0]["current_location_text"]) if "current_location_text" in df.columns else "Main Hub"
-                
-                st.info(f"📍 **Current Location:** {loc_val}")
-                st.warning(f"📊 **Delivery Status:** {status_val}")
-                
-                try:
-                    lat_num = result.iloc[0]['latitude']
-                    lon_num = result.iloc[0]['longitude']
-                    if pd.notna(lat_num) and float(lat_num) != 0.0:
-                        st.map(pd.DataFrame({"latitude": [float(lat_num)], "longitude": [float(lon_num)]}), zoom=14)
-                except:
-                    pass
-                    
-                st.markdown("### 📄 Official Tracking Invoice Receipt")
-                cust_receipt = build_premium_receipt(search_id, name_val, details_val, date_val, status_val, s_name_val, s_addr_val, loc_val)
-                st.components.v1.html(cust_receipt, height=560, scrolling=True)
-            else:
-                st.error("Tracking number not recognized by World Link. Please verify your number.")
+    st.subheader("🔍 Look Up Shipment Details")
+    c_track_id = st.text_input("Enter your tracking number (e.g., WL-XXXXXX):").strip().upper()
+    c_s_name = st.text_input("Sender Full Name")
+    c_s_addr = st.text_input("Sender Address / Branch")
+    c_r_name = st.text_input("Recipient Full Name")
+    c_p_info = st.text_area("Parcel Details & Destination")
+    c_status = st.selectbox("Current Shipment Status:", ["Manifest Created / Awaiting Dispatch", "Picked Up by Courier - In Transit", "Arrived at Distribution Hub", "Out for Delivery", "Delivered Successfully"])
+    c_loc = st.text_input("Current Location Description", value="Main Sorting Hub")
+    
+    if st.button("Generate Digital Manifest View"):
+        if c_track_id and c_r_name:
+            st.success("Shipment Generated Successfully!")
+            c_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+            receipt_code = build_premium_receipt(c_track_id, c_r_name, c_p_info, c_time, c_status, c_s_name, c_s_addr, c_loc)
+            st.components.v1.html(receipt_code, height=560, scrolling=True)
+        else:
+            st.warning("Please complete the tracking number and recipient name fields.")
 
 # ----------------- ADMIN DASHBOARD -----------------
 if menu == "Admin / Dispatch Dashboard":
@@ -121,45 +77,39 @@ if menu == "Admin / Dispatch Dashboard":
         s_addr = st.text_input("Sender Address / Branch")
         c_name = st.text_input("Recipient Full Name")
         p_info = st.text_area("Parcel Details & Destination Address")
-        l_text = st.text_input("Initial Location Description", value="Main Sorting Hub")
-        lat_val = st.text_input("Initial Latitude", value="-1.2841")
-        lon_val = st.text_input("Initial Longitude", value="36.8155")
+        l_text = st.text_input("Current Location Description", value="Main Sorting Hub")
+        new_status = st.selectbox("Update Status To:", ["Manifest Created / Awaiting Dispatch", "Picked Up by Courier - In Transit to Hub", "Arrived at Distribution Facility Hub", "Out for Delivery with Transit Rider", "Delivered Successfully"])
         
-        if st.button("Generate World Link Tracking & Save"):
+        if st.button("Generate World Link Tracking Card"):
             if c_name and p_info and s_name:
-                new_id = generate_tracking_id()
+                generated_id = generate_tracking_id()
                 c_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-                init_status = "Manifest Created / Awaiting Dispatch"
                 
-                payload = {
-                    "tracking_number": new_id, "customer_name": c_name, "parcel_details": p_info,
-                    "status": init_status, "date_created": c_time, "latitude": float(lat_val),
-                    "longitude": float(lon_val), "current_location_text": l_text,
-                    "sender_name": s_name, "sender_address": s_addr
-                }
-                
-                try:
-                    url = f"{SUPABASE_URL}/rest/v1/parcels"
-                    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), method="POST")
-                    req.add_header("apikey", SUPABASE_KEY)
-                    req.add_header("Authorization", f"Bearer {SUPABASE_KEY}")
-                    req.add_header("Content-Type", "application/json")
-                    req.add_header("Prefer", "return=representation")
-                    
-                    with urllib.request.urlopen(req) as resp:
-                        pass
-                except Exception as e:
-                    pass
-                
-                st.session_state["last_saved_id"] = new_id
-                st.success(f"📦 Tracking Generated and Saved Permanently! Code: {new_id}")
+                st.session_state["local_id"] = generated_id
+                st.session_state["local_cname"] = c_name
+                st.session_state["local_details"] = p_info
+                st.session_state["local_time"] = c_time
+                st.session_state["local_status"] = new_status
+                st.session_state["local_sname"] = s_name
+                st.session_state["local_saddr"] = s_addr
+                st.session_state["local_loc"] = l_text
+                st.success(f"📦 Tracking Generated Successfully! Code: {generated_id}")
                 st.rerun()
             else:
                 st.warning("Please complete Sender Name, Recipient Name, and Details fields.")
 
-        if "last_saved_id" in st.session_state:
-            df_recent = fetch_cloud_data()
-            if not df_recent.empty and "tracking_number" in df_recent.columns:
-                p = df_recent[df_recent["tracking_number"] == st.session_state["last_saved_id"]]
-                if not p.empty:
-                    st.markdown("### 🧾 Official Generated Dispatch Receipt")
+        if "local_id" in st.session_state:
+            st.markdown("### 🧾 Official Generated Dispatch Receipt")
+            receipt_html_code = build_premium_receipt(
+                st.session_state["local_id"], st.session_state["local_cname"],
+                st.session_state["local_details"], st.session_state["local_time"],
+                st.session_state["local_status"], st.session_state["local_sname"],
+                st.session_state["local_saddr"], st.session_state["local_loc"]
+            )
+            st.components.v1.html(receipt_html_code, height=560, scrolling=True)
+            st.caption("💡 *Take a clean snapshot snippet or right-click to print this receipt card to send directly to your client via WhatsApp!*")
+            if st.button("Clear Receipt Preview"):
+                del st.session_state["local_id"]
+                st.rerun()
+    elif admin_password != "":
+        st.error("🔒 Incorrect Admin Password. Access Denied.")
