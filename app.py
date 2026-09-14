@@ -118,19 +118,9 @@ if menu == "Customer Tracking View":
                     details = result.loc[row_idx, "parcel_details"]
                     date_created = result.loc[row_idx, "date_created"]
                     
-                    s_name = "N/A"
-                    if "sender_name" in df.columns:
-                        s_name = str(result.loc[row_idx, "sender_name"])
-                        
-                    s_addr = "N/A"
-                    if "sender_address" in df.columns:
-                        s_addr = str(result.loc[row_idx, "sender_address"])
-                    
-                    curr_loc_text = "Main Hub"
-                    if "current_location_text" in df.columns:
-                        extracted_loc = result.loc[row_idx, "current_location_text"]
-                        if pd.notna(extracted_loc) and str(extracted_loc) != "None":
-                            curr_loc_text = str(extracted_loc)
+                    s_name = str(result.loc[row_idx, "sender_name"]) if "sender_name" in df.columns else "N/A"
+                    s_addr = str(result.loc[row_idx, "sender_address"]) if "sender_address" in df.columns else "N/A"
+                    curr_loc_text = str(result.loc[row_idx, "current_location_text"]) if "current_location_text" in df.columns else "Main Hub"
                     
                     st.info(f"📍 **Current Location:** {curr_loc_text}")
                     st.warning(f"📊 **Delivery Status:** {status}")
@@ -204,5 +194,13 @@ elif menu == "Admin / Dispatch Dashboard":
                     conn.commit()
                     conn.close()
                     
-                    st.session_state["last_added_parcel"] = {
-                        "id": new_track_id, "name": cust_name, "details": parcel_info, "time": current_time, "status": initial_status, "s_name": sender_name_in, "s_addr": sender_addr_in
+                    # FIXED BRACKETS FLATTENED: Packed cleanly onto single tracking references to avoid line cutoffs
+                    st.success(f"Tracking Number Generated Successfully! Code: {new_track_id}")
+                    st.info("🔄 Refresh the tracking panel to print or process updates.")
+                else:
+                    st.warning("Please complete Sender Name, Recipient Name, and Parcel Details fields.")
+
+        # Update Parcel Status Section
+        st.markdown("### 🔄 Update Live Parcel Location Pin & Status")
+        all_parcels = fetch_local_data()
+        
