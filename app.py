@@ -1,6 +1,7 @@
 import streamlit as st
 import random
 import string
+import urllib.parse
 from datetime import datetime
 
 # PREMIUM BUSINESS RECEIPT LAYOUT ENGINE
@@ -41,109 +42,104 @@ def build_premium_receipt(track_id, name, details, date, status, s_name, s_addr,
     </div>
     """
 
-# --- STREAMLIT SCREEN SETUP ---
 st.set_page_config(page_title="World Link Courier Service", layout="centered", page_icon="📦")
 st.title("🌐 World Link Courier Service")
 st.markdown("##### *Fast, Reliable, and Secure Global Tracking Portal*")
 
-menu = st.sidebar.radio("Navigation Portal", ["Customer Tracking View", "Admin / Dispatch Dashboard"])
+# READ UNIQUE INCOMING LINK PARAMETERS AUTOMATICALLY
+query_params = st.query_params
 
-# UNLOCKED SEED DATABASE: Shared database memory that NEVER hides features or errors out
-if "shared_cloud_vault" not in st.session_state:
-    st.session_state["shared_cloud_vault"] = {
-        "WL-SAMPLE": {
-            "id": "WL-SAMPLE", "c_name": "Jane Smith", "details": "Express Box Delivery Destination: Mombasa Hub",
-            "time": "2026-09-14 14:30", "status": "In Transit to Destination Hub", 
-            "s_name": "Nairobi Wholesale Ltd", "s_addr": "Industrial Area Warehouse", "current_loc": "Nakuru Transit Station"
-        }
-    }
-
-def generate_tracking_id():
-    while True:
-        chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        tracking_id = f"WL-{chars}"
-        if tracking_id not in st.session_state["shared_cloud_vault"]:
-            return tracking_id
-
-# ----------------- REPAIRED CUSTOMER VIEW -----------------
-if menu == "Customer Tracking View":
-    st.subheader("🔍 Track Your Shipment")
-    search_id = st.text_input("Enter your tracking number (e.g., WL-XXXXXX):").strip().upper()
+if "id" in query_params:
+    # ----------------- 📲 AUTOMATED CLIENT LINK VIEW -----------------
+    st.subheader("🔍 Automated Shipment Tracking")
     
-    if st.button("Track Shipment"):
-        if search_id:
-            if search_id in st.session_state["shared_cloud_vault"]:
-                p = st.session_state["shared_cloud_vault"][search_id]
-                st.success("Shipment Located Successfully!")
-                st.info(f"📍 **Current Location:** {p['current_loc']}")
-                st.warning(f"📊 **Delivery Status:** {p['status']}")
-                
-                st.markdown("### 📄 Official Tracking Invoice Receipt")
-                cust_receipt = build_premium_receipt(search_id, p['c_name'], p['details'], p['time'], p['status'], p['s_name'], p['s_addr'], p['current_loc'])
-                st.components.v1.html(cust_receipt, height=560, scrolling=True)
-            else:
-                st.error("Tracking number not recognized by World Link. Please verify your number.")
-        else:
-            st.warning("Please type in a tracking number first.")
-
-# ----------------- REPAIRED ADMIN DASHBOARD -----------------
-if menu == "Admin / Dispatch Dashboard":
-    st.sidebar.markdown("---")
-    admin_password = st.sidebar.text_input("Enter Admin Password", type="password")
+    t_id = str(query_params.get("id")).upper()
+    t_cust = str(query_params.get("name"))
+    t_details = str(query_params.get("desc"))
+    t_status = str(query_params.get("status"))
+    t_loc = str(query_params.get("loc"))
+    t_sname = str(query_params.get("sname"))
+    t_saddr = str(query_params.get("saddr"))
+    t_date = str(query_params.get("date"))
     
-    if admin_password == "Mbappe7979":
-        st.subheader("🛠️ World Link Operations Dashboard")
-        st.markdown("### ➕ Register New Customer Parcel")
-        
-        # Plain flat inputs unlock tracking number generation instantly
-        s_name = st.text_input("Sender Full Name")
-        s_addr = st.text_input("Sender Address / Branch")
-        c_name = st.text_input("Recipient Full Name")
-        p_info = st.text_area("Parcel Details & Destination Address")
-        l_text = st.text_input("Initial Location Description", value="Main Sorting Hub")
-        new_status = st.selectbox("Initial Delivery Status:", ["Manifest Created / Awaiting Dispatch", "Picked Up by Courier - In Transit to Hub", "Arrived at Distribution Facility Hub", "Out for Delivery with Transit Rider", "Delivered Successfully"])
-        
-        if st.button("Generate World Link Tracking & Save"):
-            if c_name and p_info and s_name:
-                generated_id = generate_tracking_id()
-                c_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-                
-                # Commit tracking data safely into shared dictionary values
-                st.session_state["shared_cloud_vault"][generated_id] = {
-                    "id": generated_id, "c_name": c_name, "details": p_info, "time": c_time,
-                    "status": new_status, "s_name": s_name, "s_addr": s_addr, "current_loc": l_text
-                }
-                st.session_state["last_id"] = generated_id
-                st.success(f"📦 Tracking Generated Successfully! Code: {generated_id}")
-                st.rerun()
-            else:
-                st.warning("Please complete Sender Name, Recipient Name, and Details fields.")
+    st.success("Shipment Located via Secure Digital Link!")
+    st.info(f"📍 **Current Location:** {t_loc}")
+    st.warning(f"📊 **Delivery Status:** {t_status}")
+    
+    st.markdown("### 📄 Official Tracking Invoice Receipt")
+    receipt_code = build_premium_receipt(t_id, t_cust, t_details, t_date, t_status, t_sname, t_saddr, t_loc)
+    st.components.v1.html(receipt_code, height=560, scrolling=True)
+    
+    if st.button("⬅️ Return to Manual Customer Tracking View"):
+        st.query_params.clear()
+        st.rerun()
 
-        # RESTORED PREMIUM RECEIPT DISPLAY: Shows up right after generation
-        if "last_id" in st.session_state and st.session_state["last_id"] in st.session_state["shared_cloud_vault"]:
-            p = st.session_state["shared_cloud_vault"][st.session_state["last_id"]]
-            st.markdown("### 🧾 Official Generated Dispatch Receipt")
-            receipt_html_code = build_premium_receipt(p['id'], p['c_name'], p['details'], p['time'], p['status'], p['s_name'], p['s_addr'], p['current_loc'])
-            st.components.v1.html(receipt_html_code, height=560, scrolling=True)
-            if st.button("Clear Receipt Preview"):
-                del st.session_state["last_id"]
-                st.rerun()
+else:
+    # ----------------- STANDARD INTERFACE PORTALS -----------------
+    menu = st.sidebar.radio("Navigation Portal", ["Customer Tracking View", "Admin / Dispatch Dashboard"])
 
-        # --- 🔄 PERMANENTLY UNLOCKED UPDATE FORMS ---
-        st.markdown("### 🔄 Update Live Parcel Location & Status")
-        sel_track = st.selectbox("Select Active Tracking Number to Modify", list(st.session_state["shared_cloud_vault"].keys()))
-        
-        new_status_up = st.selectbox("Change Status To:", ["Manifest Created / Awaiting Dispatch", "Picked Up by Courier - In Transit to Hub", "Arrived at Distribution Facility Hub", "Out for Delivery with Transit Rider", "Delivered Successfully"], key="up_status")
-        up_loc_text = st.text_input("Change Current Location Description", value=st.session_state["shared_cloud_vault"][sel_track]["current_loc"], key="up_loc")
-        
-        if st.button("Commit Status & Location Update"):
-            st.session_state["shared_cloud_vault"][sel_track]["status"] = new_status_up
-            st.session_state["shared_cloud_vault"][sel_track]["current_loc"] = up_loc_text
-            st.success(f"Tracking ID {sel_track} updated completely!")
-            st.rerun()
+    # ----------------- CUSTOMER MANUAL VIEW -----------------
+    if menu == "Customer Tracking View":
+        st.subheader("🔍 Track Your Shipment")
+        st.info("💡 **Logistics Update:** To view your active package movement, please click the unique **Smart Tracking Link** sent to you via WhatsApp or SMS by your dispatch agent.")
+        st.text_input("Enter your tracking number (e.g., WL-XXXXXX):")
+        if st.button("Track Shipment"):
+            st.error("Tracking requires your active business link parameter. Please request your live WhatsApp link from World Link Dispatch.")
+
+    # ----------------- OPERATIONS ADMIN DASHBOARD -----------------
+    if menu == "Admin / Dispatch Dashboard":
+        st.sidebar.markdown("---")
+        admin_password = st.sidebar.text_input("Enter Admin Password", type="password")
+        if admin_password == "Mbappe7979":
+            st.subheader("🛠️ World Link Operations Dashboard")
+            st.markdown("### ➕ Register New Customer Parcel")
+            
+            s_name = st.text_input("Sender Full Name")
+            s_addr = st.text_input("Sender Address / Branch")
+            c_name = st.text_input("Recipient Full Name")
+            p_info = st.text_area("Parcel Details & Destination Address")
+            l_text = st.text_input("Current Location Description", value="Main Sorting Hub")
+            new_status = st.selectbox("Current Delivery Status:", ["Manifest Created / Awaiting Dispatch", "Picked Up by Courier - In Transit to Hub", "Arrived at Distribution Facility Hub", "Out for Delivery with Transit Rider", "Delivered Successfully"])
+            
+            if st.button("Generate World Link Tracking Card & Link"):
+                if c_name and p_info and s_name:
+                    chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+                    generated_id = f"WL-{chars}"
+                    c_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    
+                    # Package parameters securely into link structures
+                    base_url = "https://streamlit.app"
+                    params = {
+                        "id": generated_id, "name": c_name, "desc": p_info,
+                        "status": new_status, "loc": l_text, "sname": s_name,
+                        "saddr": s_addr, "date": c_time
+                    }
+                    encoded_link = f"{base_url}?{urllib.parse.urlencode(params)}"
+                    
+                    st.session_state["out_id"] = generated_id
+                    st.session_state["out_html"] = build_premium_receipt(generated_id, c_name, p_info, c_time, new_status, s_name, s_addr, l_text)
+                    st.session_state["out_link"] = encoded_link
+                    st.rerun()
+                else:
+                    st.warning("Please complete Sender Name, Recipient Name, and Details fields.")
+
+            if "out_id" in st.session_state:
+                st.markdown("---")
+                st.success(f"📦 Tracking Generated Successfully! Code: {st.session_state['out_id']}")
                 
-        st.markdown("### 📋 Active Shipment Logs")
-        st.dataframe(pd.DataFrame(st.session_state["shared_cloud_vault"].values()), use_container_width=True, hide_index=True)
-        
-    elif admin_password != "":
-        st.error("🔒 Incorrect Admin Password. Access Denied.")
+                st.markdown("### 🔗 Smart Client Tracking Link")
+                st.info("Copy this entire link from the box below and text or WhatsApp it straight to your client. When they click it, the website opens up their custom invoice instantly!")
+                st.code(st.session_state["out_link"])
+                
+                st.markdown("### 🧾 Official Generated Dispatch Receipt")
+                st.components.v1.html(st.session_state["out_html"], height=560, scrolling=True)
+                
+                if st.button("Clear Dashboard Registration Preview"):
+                    del st.session_state["out_id"]
+                    st.rerun()
+
+            # --- 🔄 PERMANENTLY UNLOCKED LIVE UPDATE TOOL ---
+            st.markdown("### 🔄 Update Live Parcel Location Pin & Status")
+            st.info("💡 **To update a package's transit stage:** Fill out the forms below with your changes, click **Generate**, and copy the new updated link to send to your client!")
+        elif admin_password != "":
+            st.error("🔒 Incorrect Admin Password. Access Denied.")
