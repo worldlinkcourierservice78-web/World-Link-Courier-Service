@@ -9,7 +9,6 @@ from datetime import datetime
 def init_db():
     conn = sqlite3.connect("world_link_local.db")
     cursor = conn.cursor()
-    # 1. Create the base table structure if it doesn't exist
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS parcels (
             tracking_number TEXT PRIMARY KEY,
@@ -21,11 +20,10 @@ def init_db():
             longitude REAL
         )
     """)
-    # 2. AUTOMATIC MIGRATION: Safely inject the new column if it is missing
     try:
         cursor.execute("ALTER TABLE parcels ADD COLUMN current_location_text TEXT DEFAULT 'Main Hub'")
     except sqlite3.OperationalError:
-        pass # The column already exists, do nothing
+        pass 
         
     conn.commit()
     conn.close()
@@ -204,4 +202,6 @@ elif menu == "Admin / Dispatch Dashboard":
                 "Delivered Successfully"
             ])
             
+            # FIXED: Corrected iloc[0] row extraction format for Pandas
             existing_loc_str = str(current_row.iloc[0]["current_location_text"]) if "current_location_text" in all_parcels.columns else "Main Hub"
+            if existing_loc_str == "None" or pd.isna(current_row.iloc[0]["current_location_text"]):
