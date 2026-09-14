@@ -23,7 +23,6 @@ def init_db():
             sender_address TEXT
         )
     """)
-    # Safely handle database updates for existing fields
     try:
         cursor.execute("ALTER TABLE parcels ADD COLUMN current_location_text TEXT DEFAULT 'Main Hub'")
     except sqlite3.OperationalError:
@@ -113,23 +112,31 @@ if menu == "Customer Tracking View":
                 if not result.empty:
                     st.success("Shipment Located!")
                     
-                    row_idx = result.index
-                    status = result.at[row_idx, "status"]
-                    cust_name = result.at[row_idx, "customer_name"]
-                    details = result.at[row_idx, "parcel_details"]
-                    date_created = result.at[row_idx, "date_created"]
-                    s_name = result.at[row_idx, "sender_name"] if "sender_name" in df.columns else "N/A"
-                    s_addr = result.at[row_idx, "sender_address"] if "sender_address" in df.columns else "N/A"
+                    row_idx = result.index[0]
+                    status = result.loc[row_idx, "status"]
+                    cust_name = result.loc[row_idx, "customer_name"]
+                    details = result.loc[row_idx, "parcel_details"]
+                    date_created = result.loc[row_idx, "date_created"]
                     
-                    curr_loc_text = result.at[row_idx, "current_location_text"] if "current_location_text" in df.columns else "Main Hub"
-                    if not curr_loc_text or pd.isna(curr_loc_text):
-                        curr_loc_text = "Main Hub"
+                    s_name = "N/A"
+                    if "sender_name" in df.columns:
+                        s_name = str(result.loc[row_idx, "sender_name"])
+                        
+                    s_addr = "N/A"
+                    if "sender_address" in df.columns:
+                        s_addr = str(result.loc[row_idx, "sender_address"])
+                    
+                    curr_loc_text = "Main Hub"
+                    if "current_location_text" in df.columns:
+                        extracted_loc = result.loc[row_idx, "current_location_text"]
+                        if pd.notna(extracted_loc) and str(extracted_loc) != "None":
+                            curr_loc_text = str(extracted_loc)
                     
                     st.info(f"📍 **Current Location:** {curr_loc_text}")
                     st.warning(f"📊 **Delivery Status:** {status}")
                     
-                    lat_val = result.at[row_idx, "latitude"]
-                    lon_val = result.at[row_idx, "longitude"]
+                    lat_val = result.loc[row_idx, "latitude"]
+                    lon_val = result.loc[row_idx, "longitude"]
                     if pd.notna(lat_val) and pd.notna(lon_val) and lat_val != 0.0 and lon_val != 0.0:
                         st.markdown("### 🗺️ Current Pinned Location Map")
                         map_df = pd.DataFrame({"latitude": [float(lat_val)], "longitude": [float(lon_val)]})
@@ -199,7 +206,3 @@ elif menu == "Admin / Dispatch Dashboard":
                     
                     st.session_state["last_added_parcel"] = {
                         "id": new_track_id, "name": cust_name, "details": parcel_info, "time": current_time, "status": initial_status, "s_name": sender_name_in, "s_addr": sender_addr_in
-                    }
-                    st.success(f"Tracking Number Generated Successfully!")
-                    st.rerun()
-                else:
