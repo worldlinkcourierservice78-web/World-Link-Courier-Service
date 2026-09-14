@@ -95,20 +95,20 @@ if menu == "Customer Tracking View":
                 result = df[df["tracking_number"] == search_id]
                 if not result.empty:
                     st.success("Shipment Located!")
-                    status = result.iloc[0]["status"]
-                    cust_name = result.iloc[0]["customer_name"]
-                    details = result.iloc[0]["parcel_details"]
-                    date_created = result.iloc[0]["date_created"]
+                    status = result.iloc["status"]
+                    cust_name = result.iloc["customer_name"]
+                    details = result.iloc["parcel_details"]
+                    date_created = result.iloc["date_created"]
                     
-                    curr_loc_text = result.iloc[0]["current_location_text"] if "current_location_text" in df.columns else "Main Hub"
+                    curr_loc_text = result.iloc["current_location_text"] if "current_location_text" in df.columns else "Main Hub"
                     if not curr_loc_text or pd.isna(curr_loc_text):
                         curr_loc_text = "Main Hub"
                     
                     st.info(f"📍 **Current Location:** {curr_loc_text}")
                     st.warning(f"📊 **Delivery Status:** {status}")
                     
-                    lat_val = result.iloc[0]["latitude"]
-                    lon_val = result.iloc[0]["longitude"]
+                    lat_val = result.iloc["latitude"]
+                    lon_val = result.iloc["longitude"]
                     if pd.notna(lat_val) and pd.notna(lon_val) and lat_val != 0.0 and lon_val != 0.0:
                         st.markdown("### 🗺️ Current Pinned Location Map")
                         map_df = pd.DataFrame({"latitude": [float(lat_val)], "longitude": [float(lon_val)]})
@@ -202,8 +202,6 @@ elif menu == "Admin / Dispatch Dashboard":
                 "Delivered Successfully"
             ])
             
-            # Bulletproof extraction format prevents alignment script splits
-            existing_loc_str = "Main Hub"
-            if "current_location_text" in all_parcels.columns:
-                extracted_val = current_row.iloc[0]["current_location_text"]
-                if pd.notna(extracted_val) and str(extracted_val) != "None":
+            # FLAT LOGIC: This clean line completely replaces the old problematic multi-line if statement block
+            existing_loc_str = str(current_row.iloc["current_location_text"]) if "current_location_text" in all_parcels.columns and pd.notna(current_row.iloc["current_location_text"]) else "Main Hub"
+                
