@@ -4,8 +4,7 @@ import random
 import string
 from datetime import datetime
 
-# --- 🌐 BULLETPROOF CLOUD DATABASE LINK ---
-# Your permanent Google Sheet URL that NEVER deletes your work
+# --- 🌐 NEW CLOUD DATABASE LINK ---
 GOOGLE_CSV_URL = "https://google.com"
 
 def fetch_cloud_data():
@@ -14,7 +13,6 @@ def fetch_cloud_data():
         df.columns = df.columns.str.strip().str.lower()
         return df
     except:
-        # Fallback database structure if sheet is empty or buffering
         return pd.DataFrame(columns=["tracking_number", "customer_name", "parcel_details", "status", "date_created", "latitude", "longitude", "current_location_text", "sender_name", "sender_address"])
 
 def generate_tracking_id():
@@ -51,7 +49,7 @@ def build_premium_receipt(track_id, name, details, date, status, s_name, s_addr)
 
         <div style="margin-bottom: 15px;">
             <h4 style="margin: 0 0 6px 0; font-size: 13px; color: #0f172a; border-left: 3px solid #0056b3; padding-left: 6px; text-transform: uppercase; font-weight: 700;">🕵️ Sender Details</h4>
-            <div style="font-size: 12px; color: #475569; background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #f1f5f9;">
+            <div style="font-size: 12px; color: #475569; background-color: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #f1f5f9;">
                 <b>Name:</b> {s_name}<br>
                 <b>Address/Branch:</b> {s_addr}
             </div>
@@ -59,7 +57,7 @@ def build_premium_receipt(track_id, name, details, date, status, s_name, s_addr)
 
         <div style="margin-bottom: 15px;">
             <h4 style="margin: 0 0 6px 0; font-size: 13px; color: #0f172a; border-left: 3px solid #0056b3; padding-left: 6px; text-transform: uppercase; font-weight: 700;">📦 Recipient Manifest</h4>
-            <div style="font-size: 12px; color: #475569; background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #f1f5f9;">
+            <div style="font-size: 12px; color: #475569; background-color: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #f1f5f9;">
                 <b>Receiver Name:</b> {name}<br>
                 <b>Destination & Info:</b><br>
                 <div style="white-space: pre-wrap; font-style: italic; color: #334155; margin-top: 4px; padding-left: 5px; border-left: 2px dashed #cbd5e1;">{details}</div>
@@ -73,7 +71,7 @@ def build_premium_receipt(track_id, name, details, date, status, s_name, s_addr)
     </div>
     """
 
-# --- STREAMLIT SCREEN SETUP ---
+# --- STREAMLIT UI CONFIGURATION ---
 st.set_page_config(page_title="World Link Courier Service", layout="centered", page_icon="📦")
 st.title("🌐 World Link Courier Service")
 st.markdown("##### *Fast, Reliable, and Secure Global Tracking Portal*")
@@ -85,33 +83,38 @@ if menu == "Customer Tracking View":
     st.subheader("🔍 Track Your Shipment")
     search_id = st.text_input("Enter your tracking number (e.g., WL-XXXXXX):").strip().upper()
     if st.button("Track Shipment"):
-        df = fetch_cloud_data()
-        result = df[df["tracking_number"] == search_id] if not df.empty and "tracking_number" in df.columns else pd.DataFrame()
-        if not result.empty:
-            st.success("Shipment Located!")
-            
-            # Safe text assignments that survive flat structures
-            status_val = str(result.iloc[0]["status"])
-            name_val = str(result.iloc[0]["customer_name"])
-            details_val = str(result.iloc[0]["parcel_details"])
-            date_val = str(result.iloc[0]["date_created"])
-            s_name_val = str(result.iloc[0]["sender_name"]) if "sender_name" in df.columns else "N/A"
-            s_addr_val = str(result.iloc[0]["sender_address"]) if "sender_address" in df.columns else "N/A"
-            loc_val = str(result.iloc[0]["current_location_text"]) if "current_location_text" in df.columns else "Main Hub"
-            
-            st.info(f"📍 **Current Location:** {loc_val}")
-            st.warning(f"📊 **Delivery Status:** {status_val}")
-            
-            lat_num = result.iloc[0]['latitude']
-            lon_num = result.iloc[0]['longitude']
-            if pd.notna(lat_num) and pd.notna(lon_num) and float(lat_num) != 0.0:
-                st.map(pd.DataFrame({"latitude": [float(lat_num)], "longitude": [float(lon_num)]}), zoom=14)
+        if search_id:
+            df = fetch_cloud_data()
+            result = df[df["tracking_number"] == search_id] if not df.empty and "tracking_number" in df.columns else pd.DataFrame()
+            if not result.empty:
+                st.success("Shipment Located!")
                 
-            st.markdown("### 📄 Official Tracking Invoice Receipt")
-            cust_receipt = build_premium_receipt(search_id, name_val, details_val, date_val, status_val, s_name_val, s_addr_val)
-            st.components.v1.html(cust_receipt, height=560, scrolling=True)
+                status_val = str(result.iloc[0]["status"])
+                name_val = str(result.iloc[0]["customer_name"])
+                details_val = str(result.iloc[0]["parcel_details"])
+                date_val = str(result.iloc[0]["date_created"])
+                s_name_val = str(result.iloc[0]["sender_name"]) if "sender_name" in df.columns else "N/A"
+                s_addr_val = str(result.iloc[0]["sender_address"]) if "sender_address" in df.columns else "N/A"
+                loc_val = str(result.iloc[0]["current_location_text"]) if "current_location_text" in df.columns else "Main Hub"
+                
+                st.info(f"📍 **Current Location:** {loc_val}")
+                st.warning(f"📊 **Delivery Status:** {status_val}")
+                
+                try:
+                    lat_num = result.iloc[0]['latitude']
+                    lon_num = result.iloc[0]['longitude']
+                    if pd.notna(lat_num) and pd.notna(lon_num) and float(lat_num) != 0.0:
+                        st.map(pd.DataFrame({"latitude": [float(lat_num)], "longitude": [float(lon_num)]}), zoom=14)
+                except:
+                    pass
+                    
+                st.markdown("### 📄 Official Tracking Invoice Receipt")
+                cust_receipt = build_premium_receipt(search_id, name_val, details_val, date_val, status_val, s_name_val, s_addr_val)
+                st.components.v1.html(cust_receipt, height=560, scrolling=True)
+            else:
+                st.error("Tracking number not recognized by World Link. Please verify your number.")
         else:
-            st.error("Tracking number not recognized by World Link. Please verify your number.")
+            st.warning("Please type in a tracking number first.")
 
 # ----------------- ADMIN DASHBOARD -----------------
 if menu == "Admin / Dispatch Dashboard":
@@ -121,7 +124,6 @@ if menu == "Admin / Dispatch Dashboard":
         st.subheader("🛠️ World Link Operations Dashboard")
         st.markdown("### ➕ Register New Customer Parcel")
         
-        # Aligned form inputs
         s_name = st.text_input("Sender Full Name")
         s_addr = st.text_input("Sender Address / Branch")
         c_name = st.text_input("Recipient Full Name")
@@ -135,20 +137,18 @@ if menu == "Admin / Dispatch Dashboard":
             c_time = datetime.now().strftime("%Y-%m-%d %H:%M")
             init_status = "Manifest Created / Awaiting Dispatch"
             
-            # Save into Streamlit cache memory instantly to load the premium receipt card
             st.session_state["rcpt_id"] = new_id
             st.session_state["rcpt_cname"] = c_name
             st.session_state["rcpt_details"] = p_info
             st.session_state["rcpt_time"] = c_time
             st.session_state["rcpt_status"] = init_status
-            st.session_state["rcpt_sname"] = s_name
-            st.session_state["rcpt_saddr"] = s_addr
+            st.session_state["rcpt_name"] = s_name
+            st.session_state["rcpt_addr"] = s_addr
             
             st.success(f"📦 Tracking Generated Successfully! Code: {new_id}")
-            st.markdown("💡 *To save this entry forever, copy the row details into your shared Google Sheet row file.*")
+            st.markdown("💡 *To save this entry forever, copy the row details into your new shared Google Sheet row file.*")
             st.rerun()
 
-        # Display Premium Receipt immediately upon submission
         if "rcpt_id" in st.session_state:
             st.markdown("### 🧾 Official Generated Dispatch Receipt")
             receipt_html_code = build_premium_receipt(
@@ -157,8 +157,8 @@ if menu == "Admin / Dispatch Dashboard":
                 st.session_state["rcpt_details"],
                 st.session_state["rcpt_time"],
                 st.session_state["rcpt_status"],
-                st.session_state["rcpt_sname"],
-                st.session_state["rcpt_saddr"]
+                st.session_state["rcpt_name"],
+                st.session_state["rcpt_addr"]
             )
             st.components.v1.html(receipt_html_code, height=560, scrolling=True)
             if st.button("Clear Receipt Preview"):
