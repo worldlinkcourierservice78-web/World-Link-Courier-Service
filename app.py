@@ -2,7 +2,47 @@ import streamlit as st
 import pandas as pd
 import random
 import string
+import sqlite3
 from datetime import datetime
+
+# --- 📦 IMMUNE MASTER DATABASE ENGINE ---
+# This file saves records directly to the local folder so all views share data
+def init_db():
+    conn = sqlite3.connect("world_link_storage.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS parcels (
+            tracking_number TEXT PRIMARY KEY,
+            customer_name TEXT,
+            parcel_details TEXT,
+            status TEXT,
+            date_created TEXT,
+            current_location_text TEXT,
+            sender_name TEXT,
+            sender_address TEXT,
+            latitude REAL,
+            longitude REAL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def fetch_database_records():
+    conn = sqlite3.connect("world_link_storage.db")
+    df = pd.read_sql_query("SELECT * FROM parcels", conn)
+    conn.close()
+    return df
+
+def generate_tracking_id():
+    df = fetch_database_records()
+    existing_ids = df["tracking_number"].values if not df.empty else []
+    while True:
+        chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        tracking_id = f"WL-{chars}"
+        if tracking_id not in existing_ids:
+            return tracking_id
 
 # PREMIUM BUSINESS RECEIPT LAYOUT ENGINE
 def build_premium_receipt(track_id, name, details, date, status, s_name, s_addr, current_loc="Main Sorting Hub"):
@@ -48,40 +88,44 @@ st.markdown("##### *Fast, Reliable, and Secure Global Tracking Portal*")
 
 menu = st.sidebar.radio("Navigation Portal", ["Customer Tracking View", "Admin / Dispatch Dashboard"])
 
-# IMMUNE CORE VAULT: Pre-loaded master reference that can NEVER be wiped or deleted by server resets
-if "master_vault" not in st.session_state:
-    st.session_state["master_vault"] = {
-        "WL-777777": {
-            "id": "WL-777777", "c_name": "Sample Customer", "details": "Premium Document Parcel Delivery Destination Address",
-            "time": "2026-09-14 20:00", "status": "In Transit to Destination Hub", 
-            "s_name": "Main Logistics Sender Ltd", "s_addr": "Head Office Branch HQ", "current_loc": "Main Sorting Hub Facility"
-        }
-    }
-
-def generate_tracking_id():
-    while True:
-        chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        tracking_id = f"WL-{chars}"
-        if tracking_id not in st.session_state["master_vault"]:
-            return tracking_id
-
 # ----------------- CUSTOMER VIEW -----------------
 if menu == "Customer Tracking View":
     st.subheader("🔍 Track Your Shipment")
     search_id = st.text_input("Enter your tracking number (e.g., WL-XXXXXX):").strip().upper()
     
     if st.button("Track Shipment"):
-        if search_id in st.session_state["master_vault"]:
-            p = st.session_state["master_vault"][search_id]
-            st.success("Shipment Located!")
-            st.info(f"📍 **Current Location:** {p['current_loc']}")
-            st.warning(f"📊 **Delivery Status:** {p['status']}")
+        if search_id:
+            df = fetch_database_records()
+            result = df[df["tracking_number"] == search_id] if not df.empty else pd.DataFrame()
             
-            st.markdown("### 📄 Official Tracking Invoice Receipt")
-            cust_receipt = build_premium_receipt(search_id, p['c_name'], p['details'], p['time'], p['status'], p['s_name'], p['s_addr'], p['current_loc'])
-            st.components.v1.html(cust_receipt, height=560, scrolling=True)
-        else:
-            st.error("Tracking number not recognized by World Link. Please verify your number or register it in the Admin Dashboard first.")
+            if not result.empty:
+                st.success("Shipment Located!")
+                
+                # Fetch row variables directly out of synchronized files
+                status_val = str(result.iloc[0]["status"])
+                name_val = str(result.iloc[0]["customer_name"])
+                details_val = str(result.iloc[0]["parcel_details"])
+                date_val = str(result.iloc[0]["date_created"])
+                s_name_val = str(result.iloc[0]["sender_name"])
+                s_addr_val = str(result.iloc[0]["sender_address"])
+                loc_val = str(result.iloc[0]["current_location_text"])
+                
+                st.info(f"📍 **Current Location:** {loc_val}")
+                st.warning(f"📊 **Delivery Status:** {status_val}")
+                
+                try:
+                    lat_num = result.iloc[0]['latitude']
+                    lon_num = result.iloc[0]['longitude']
+                    if pd.notna(lat_num) and float(lat_num) != 0.0:
+                        st.map(pd.DataFrame({"latitude": [float(lat_num)], "longitude": [float(lon_num)]}), zoom=14)
+                except:
+                    pass
+                
+                st.markdown("### 📄 Official Tracking Invoice Receipt")
+                cust_receipt = build_premium_receipt(search_id, name_val, details_val, date_val, status_val, s_name_val, s_addr_val, loc_val)
+                st.components.v1.html(cust_receipt, height=560, scrolling=True)
+            else:
+                st.error("Tracking number not recognized by World Link. Please verify your number.")
 
 # ----------------- ADMIN DASHBOARD -----------------
 if menu == "Admin / Dispatch Dashboard":
@@ -96,48 +140,45 @@ if menu == "Admin / Dispatch Dashboard":
         c_name = st.text_input("Recipient Full Name")
         p_info = st.text_area("Parcel Details & Destination Address")
         l_text = st.text_input("Initial Location Description", value="Main Sorting Hub")
-        new_status = st.selectbox("Initial Status:", ["Manifest Created / Awaiting Dispatch", "Picked Up by Courier - In Transit to Hub", "Arrived at Distribution Facility Hub", "Out for Delivery with Transit Rider", "Delivered Successfully"])
+        lat_val = st.text_input("Initial Latitude", value="-1.2841")
+        lon_val = st.text_input("Initial Longitude", value="36.8155")
         
         if st.button("Generate World Link Tracking & Save"):
             if c_name and p_info and s_name:
                 generated_id = generate_tracking_id()
                 c_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+                init_status = "Manifest Created / Awaiting Dispatch"
                 
-                # Instantly pin to storage keys
-                st.session_state["master_vault"][generated_id] = {
-                    "id": generated_id, "c_name": c_name, "details": p_info, "time": c_time,
-                    "status": new_status, "s_name": s_name, "s_addr": s_addr, "current_loc": l_text
-                }
+                try:
+                    la = float(lat_val)
+                    lo = float(lon_val)
+                except:
+                    la, lo = 0.0, 0.0
+                
+                # Write directly to shared local database row
+                conn = sqlite3.connect("world_link_storage.db")
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO parcels (tracking_number, customer_name, parcel_details, status, date_created, latitude, longitude, current_location_text, sender_name, sender_address)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (generated_id, c_name, p_info, init_status, c_time, la, lo, l_text, s_name, s_addr))
+                conn.commit()
+                conn.close()
+                
                 st.session_state["last_id"] = generated_id
-                st.success(f"📦 Tracking Generated Successfully! Code: {generated_id}")
+                st.success(f"📦 Tracking Generated and Saved Permanently! Code: {generated_id}")
                 st.rerun()
             else:
                 st.warning("Please complete Sender Name, Recipient Name, and Details fields.")
 
-        if "last_id" in st.session_state and st.session_state["last_id"] in st.session_state["master_vault"]:
-            p = st.session_state["master_vault"][st.session_state["last_id"]]
-            st.markdown("### 🧾 Official Generated Dispatch Receipt")
-            receipt_html_code = build_premium_receipt(p['id'], p['c_name'], p['details'], p['time'], p['status'], p['s_name'], p['s_addr'], p['current_loc'])
-            st.components.v1.html(receipt_html_code, height=560, scrolling=True)
-            if st.button("Clear Receipt Preview"):
-                del st.session_state["last_id"]
-                st.rerun()
-
-        # UNLOCKED AUTOMATED UPDATE ROW SECTION (Always active, never vanishes!)
-        st.markdown("### 🔄 Update Live Parcel Location Pin & Status")
-        sel_track = st.selectbox("Select Active Tracking Number to Modify", list(st.session_state["master_vault"].keys()))
-        
-        new_status_up = st.selectbox("Change Status To:", ["Manifest Created / Awaiting Dispatch", "Picked Up by Courier - In Transit to Hub", "Arrived at Distribution Facility Hub", "Out for Delivery with Transit Rider", "Delivered Successfully"], key="up_status")
-        up_loc_text = st.text_input("Change Current Location Description", value=st.session_state["master_vault"][sel_track]["current_loc"], key="up_loc")
-        
-        if st.button("Commit Status & Location Update"):
-            st.session_state["master_vault"][sel_track]["status"] = new_status_up
-            st.session_state["master_vault"][sel_track]["current_loc"] = up_loc_text
-            st.success(f"Tracking ID {sel_track} updated completely!")
-            st.rerun()
-                
-        st.markdown("### 📋 Active Session shipment Logs")
-        st.dataframe(pd.DataFrame(st.session_state["master_vault"].values()), use_container_width=True, hide_index=True)
-        
-    elif admin_password != "":
-        st.error("🔒 Incorrect Admin Password. Access Denied.")
+        if "last_id" in st.session_state:
+            df_recent = fetch_database_records()
+            p = df_recent[df_recent["tracking_number"] == st.session_state["last_id"]]
+            if not p.empty:
+                st.markdown("### 🧾 Official Generated Dispatch Receipt")
+                receipt_html_code = build_premium_receipt(
+                    str(p.iloc[0]['tracking_number']), str(p.iloc[0]['customer_name']),
+                    str(p.iloc[0]['parcel_details']), str(p.iloc[0]['date_created']),
+                    str(p.iloc[0]['status']), str(p.iloc[0]['sender_name']),
+                    str(p.iloc[0]['sender_address']), str(p.iloc[0]['current_location_text'])
+                )
