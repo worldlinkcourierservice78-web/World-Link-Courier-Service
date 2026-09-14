@@ -71,7 +71,7 @@ def build_receipt_html(track_id, name, details, date, status):
     </div>
     """
 
-# --- STREAMLIT CONFIGURATION ---
+# --- STREAMLIT UI CONFIGURATION ---
 st.set_page_config(page_title="World Link Courier Service", layout="centered", page_icon="📦")
 st.title("🌐 World Link Courier Service")
 st.markdown("##### *Fast, Reliable, and Secure Global Tracking Portal*")
@@ -129,41 +129,39 @@ elif menu == "Admin / Dispatch Dashboard":
         st.subheader("🛠️ World Link Operations Dashboard")
         st.markdown("### ➕ Register New Customer Parcel")
         
-        with st.form("add_parcel_form", clear_on_submit=True):
-            cust_name = st.text_input("Customer Full Name")
-            parcel_info = st.text_area("Parcel Details & Delivery Address")
-            st.markdown("##### 📍 Initial Sorting Location Coordinates")
-            lat_input = st.text_input("Initial Latitude (Optional)", value="-1.2841")
-            lon_input = st.text_input("Initial Longitude (Optional)", value="36.8155")
-            submitted = st.form_submit_button("Generate World Link Tracking & Save")
-            
-            if submitted:
-                if cust_name and parcel_info:
-                    new_track_id = generate_tracking_id()
-                    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    initial_status = "Manifest Created / Awaiting Dispatch at Main Sorting Hub"
-                    try:
-                        lat_val = float(lat_input)
-                        lon_val = float(lon_input)
-                    except:
-                        lat_val, lon_val = 0.0, 0.0
-                    
-                    conn = sqlite3.connect("world_link_local.db")
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        INSERT INTO parcels (tracking_number, customer_name, parcel_details, status, date_created, latitude, longitude)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (new_track_id, cust_name, parcel_info, initial_status, current_time, lat_val, lon_val))
-                    conn.commit()
-                    conn.close()
-                    
-                    st.session_state["last_added_parcel"] = {
-                        "id": new_track_id, "name": cust_name, "details": parcel_info, "time": current_time, "status": initial_status
-                    }
-                    st.success(f"Tracking Number Generated Successfully!")
-                    st.rerun()
-                else:
-                    st.warning("Please complete both Customer Name and Parcel Details fields.")
+        cust_name = st.text_input("Customer Full Name")
+        parcel_info = st.text_area("Parcel Details & Delivery Address")
+        st.markdown("##### 📍 Initial Sorting Location Coordinates")
+        lat_input = st.text_input("Initial Latitude (Optional)", value="-1.2841")
+        lon_input = st.text_input("Initial Longitude (Optional)", value="36.8155")
+        
+        if st.button("Generate World Link Tracking & Save"):
+            if cust_name and parcel_info:
+                new_track_id = generate_tracking_id()
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+                initial_status = "Manifest Created / Awaiting Dispatch at Main Sorting Hub"
+                try:
+                    lat_val = float(lat_input)
+                    lon_val = float(lon_input)
+                except:
+                    lat_val, lon_val = 0.0, 0.0
+                
+                conn = sqlite3.connect("world_link_local.db")
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO parcels (tracking_number, customer_name, parcel_details, status, date_created, latitude, longitude)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (new_track_id, cust_name, parcel_info, initial_status, current_time, lat_val, lon_val))
+                conn.commit()
+                conn.close()
+                
+                st.session_state["last_added_parcel"] = {
+                    "id": new_track_id, "name": cust_name, "details": parcel_info, "time": current_time, "status": initial_status
+                }
+                st.success(f"Tracking Number Generated Successfully!")
+                st.rerun()
+            else:
+                st.warning("Please complete both Customer Name and Parcel Details fields.")
 
         if "last_added_parcel" in st.session_state:
             p = st.session_state["last_added_parcel"]
@@ -207,3 +205,8 @@ elif menu == "Admin / Dispatch Dashboard":
                 cursor = conn.cursor()
                 cursor.execute("""
                     UPDATE parcels 
+                    SET status = ?, latitude = ?, longitude = ? 
+                    WHERE tracking_number = ?
+                """, (new_status, u_lat, u_lon, selected_track))
+                conn.commit()
+                conn.close()
