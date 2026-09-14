@@ -3,67 +3,107 @@ import random
 import string
 from datetime import datetime
 
-def generate_tracking_id():
-    chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-    return f"WL-{chars}"
+# --- AUTOMATED DATABASE STORAGE ---
+# This dictionary securely stores your generated parcels for the session
+if "world_link_vault" not in st.session_state:
+    st.session_state["world_link_vault"] = {
+        "WL-SAMPLE": {
+            "id": "WL-SAMPLE", "c_name": "Jane Smith", "details": "Express Box Delivery Destination: Mombasa Hub",
+            "time": "2026-09-14 14:30", "status": "In Transit to Hub Hub", 
+            "s_name": "Nairobi Wholesale Ltd", "s_addr": "Industrial Area Warehouse", 
+            "current_loc": "Nakuru Transit Sorting Point"
+        }
+    }
 
-def build_premium_receipt(track_id, name, details, date, status, s_name, s_addr, current_loc):
+def generate_tracking_id():
+    while True:
+        chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        tracking_id = f"WL-{chars}"
+        if tracking_id not in st.session_state["world_link_vault"]:
+            return tracking_id
+
+# PREMIUM BUSINESS RECEIPT LAYOUT ENGINE
+def build_premium_receipt(track_id, name, details, date, status, s_name, s_addr, current_loc="Main Sorting Hub"):
     return f"""
     <div style="background-color: #ffffff; color: #1e293b; padding: 25px; border-radius: 12px; max-width: 440px; margin: 10px auto; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-top: 8px solid #0056b3; border-bottom: 8px solid #0056b3;">
         <div style="text-align: center; margin-bottom: 20px;">
             <h2 style="margin: 0; color: #0056b3; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">🌐 WORLD LINK</h2>
             <h5 style="margin: 2px 0 0 0; color: #64748b; font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase;">Courier & Logistics Service</h5>
         </div>
+        
         <div style="background-color: #f8fafc; padding: 10px; border-radius: 6px; text-align: center; margin-bottom: 15px; border: 1px solid #e2e8f0;">
             <span style="font-size: 10px; color: #64748b; display: block; text-transform: uppercase; font-weight: 600; letter-spacing: 1px;">Tracking Number</span>
             <span style="font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 1px;">{track_id}</span>
         </div>
+
         <div style="font-size: 12px; color: #475569; line-height: 1.6; margin-bottom: 15px;">
-            <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; margin-bottom: 4px;"><b>📅 DISPATCH DATE:</b> {date}</div>
-            <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; margin-bottom: 4px;"><b>📍 CURRENT LOCATION:</b> {current_loc}</div>
-            <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; margin-bottom: 4px;"><b>📊 STATUS:</b> <span style="color: #2563eb; font-weight: bold;">{status}</span></div>
+            <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; margin-bottom: 4px;">
+                <b>📅 DISPATCH DATE:</b> {date}
+            </div>
+            <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; margin-bottom: 4px;">
+                <b>📍 CURRENT LOCATION:</b> {current_loc}
+            </div>
+            <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; margin-bottom: 4px;">
+                <b>📊 STATUS:</b> <span style="color: #2563eb; font-weight: bold;">{status}</span>
+            </div>
         </div>
+
         <div style="margin-bottom: 15px;">
             <h4 style="margin: 0 0 6px 0; font-size: 13px; color: #0f172a; border-left: 3px solid #0056b3; padding-left: 6px; text-transform: uppercase; font-weight: 700;">🕵️ Sender Details</h4>
-            <div style="font-size: 12px; color: #475569; background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #f1f5f9;"><b>Name:</b> {s_name}<br><b>Address/Branch:</b> {s_addr}</div>
+            <div style="font-size: 12px; color: #475569; background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #f1f5f9;">
+                <b>Name:</b> {s_name}<br>
+                <b>Address/Branch:</b> {s_addr}
+            </div>
         </div>
+
         <div style="margin-bottom: 15px;">
             <h4 style="margin: 0 0 6px 0; font-size: 13px; color: #0f172a; border-left: 3px solid #0056b3; padding-left: 6px; text-transform: uppercase; font-weight: 700;">📦 Recipient Manifest</h4>
             <div style="font-size: 12px; color: #475569; background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #f1f5f9;">
-                <b>Receiver Name:</b> {name}<br><b>Destination & Info:</b><br>
+                <b>Receiver Name:</b> {name}<br>
+                <b>Destination & Info:</b><br>
                 <div style="white-space: pre-wrap; font-style: italic; color: #334155; margin-top: 4px; padding-left: 5px; border-left: 2px dashed #cbd5e1;">{details}</div>
             </div>
         </div>
+
         <hr style="border: none; border-top: 1px dashed #cbd5e1; margin-bottom: 10px;">
-        <div style="text-align: center; font-size: 11px; color: #64748b; font-weight: 600;">Thank you for choosing World Link Logistics!</div>
+        <div style="text-align: center; font-size: 11px; color: #64748b; font-weight: 600;">
+            Thank you for choosing World Link Logistics!<br>
+            <span style="color: #0056b3; font-size: 12px; display: block; margin-top: 4px;">Track live anytime via World Link Portal</span>
+        </div>
     </div>
     """
 
+# --- STREAMLIT SCREEN SETUP ---
 st.set_page_config(page_title="World Link Courier Service", layout="centered", page_icon="📦")
 st.title("🌐 World Link Courier Service")
 st.markdown("##### *Fast, Reliable, and Secure Global Tracking Portal*")
 
 menu = st.sidebar.radio("Navigation Portal", ["Customer Tracking View", "Admin / Dispatch Dashboard"])
 
-# ----------------- CUSTOMER VIEW -----------------
+# ----------------- CLEAN CUSTOMER VIEW -----------------
 if menu == "Customer Tracking View":
-    st.subheader("🔍 Look Up Shipment Details")
-    c_track_id = st.text_input("Enter your tracking number (e.g., WL-XXXXXX):").strip().upper()
-    c_s_name = st.text_input("Sender Full Name")
-    c_s_addr = st.text_input("Sender Address / Branch")
-    c_r_name = st.text_input("Recipient Full Name")
-    c_p_info = st.text_area("Parcel Details & Destination")
-    c_status = st.selectbox("Current Shipment Status:", ["Manifest Created / Awaiting Dispatch", "Picked Up by Courier - In Transit", "Arrived at Distribution Hub", "Out for Delivery", "Delivered Successfully"])
-    c_loc = st.text_input("Current Location Description", value="Main Sorting Hub")
+    st.subheader("🔍 Track Your Shipment")
     
-    if st.button("Generate Digital Manifest View"):
-        if c_track_id and c_r_name:
-            st.success("Shipment Generated Successfully!")
-            c_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-            receipt_code = build_premium_receipt(c_track_id, c_r_name, c_p_info, c_time, c_status, c_s_name, c_s_addr, c_loc)
-            st.components.v1.html(receipt_code, height=560, scrolling=True)
+    # Only ONE input box on the customer screen!
+    search_id = st.text_input("Enter your tracking number (e.g., WL-XXXXXX):").strip().upper()
+    
+    if st.button("Track Shipment"):
+        if search_id:
+            if search_id in st.session_state["world_link_vault"]:
+                p = st.session_state["world_link_vault"][search_id]
+                
+                st.success("Shipment Located!")
+                st.info(f"📍 **Current Location:** {p['current_loc']}")
+                st.warning(f"📊 **Delivery Status:** {p['status']}")
+                
+                # Render Premium Receipt for Customer View
+                st.markdown("### 📄 Official Tracking Invoice Receipt")
+                cust_receipt = build_premium_receipt(search_id, p['c_name'], p['details'], p['time'], p['status'], p['s_name'], p['s_addr'], p['current_loc'])
+                st.components.v1.html(cust_receipt, height=560, scrolling=True)
+            else:
+                st.error("Tracking number not recognized by World Link. Please verify your number.")
         else:
-            st.warning("Please complete the tracking number and recipient name fields.")
+            st.warning("Please type in a tracking number first.")
 
 # ----------------- ADMIN DASHBOARD -----------------
 if menu == "Admin / Dispatch Dashboard":
@@ -80,36 +120,45 @@ if menu == "Admin / Dispatch Dashboard":
         l_text = st.text_input("Current Location Description", value="Main Sorting Hub")
         new_status = st.selectbox("Update Status To:", ["Manifest Created / Awaiting Dispatch", "Picked Up by Courier - In Transit to Hub", "Arrived at Distribution Facility Hub", "Out for Delivery with Transit Rider", "Delivered Successfully"])
         
-        if st.button("Generate World Link Tracking Card"):
+        if st.button("Generate World Link Tracking & Save"):
             if c_name and p_info and s_name:
                 generated_id = generate_tracking_id()
                 c_time = datetime.now().strftime("%Y-%m-%d %H:%M")
                 
-                st.session_state["local_id"] = generated_id
-                st.session_state["local_cname"] = c_name
-                st.session_state["local_details"] = p_info
-                st.session_state["local_time"] = c_time
-                st.session_state["local_status"] = new_status
-                st.session_state["local_sname"] = s_name
-                st.session_state["local_saddr"] = s_addr
-                st.session_state["local_loc"] = l_text
+                # Instantly save to memory array
+                st.session_state["world_link_vault"][generated_id] = {
+                    "id": generated_id, "c_name": c_name, "details": p_info, "time": c_time,
+                    "status": new_status, "s_name": s_name, "s_addr": s_addr, "current_loc": l_text
+                }
+                
+                st.session_state["last_id"] = generated_id
                 st.success(f"📦 Tracking Generated Successfully! Code: {generated_id}")
                 st.rerun()
             else:
                 st.warning("Please complete Sender Name, Recipient Name, and Details fields.")
 
-        if "local_id" in st.session_state:
+        if "last_id" in st.session_state and st.session_state["last_id"] in st.session_state["world_link_vault"]:
+            p = st.session_state["world_link_vault"][st.session_state["last_id"]]
             st.markdown("### 🧾 Official Generated Dispatch Receipt")
-            receipt_html_code = build_premium_receipt(
-                st.session_state["local_id"], st.session_state["local_cname"],
-                st.session_state["local_details"], st.session_state["local_time"],
-                st.session_state["local_status"], st.session_state["local_sname"],
-                st.session_state["local_saddr"], st.session_state["local_loc"]
-            )
+            receipt_html_code = build_premium_receipt(p['id'], p['c_name'], p['details'], p['time'], p['status'], p['s_name'], p['s_addr'], p['current_loc'])
             st.components.v1.html(receipt_html_code, height=560, scrolling=True)
-            st.caption("💡 *Take a clean snapshot snippet or right-click to print this receipt card to send directly to your client via WhatsApp!*")
+            st.caption("💡 *Take a clean screenshot or right-click to print this receipt card to send directly to your client.*")
             if st.button("Clear Receipt Preview"):
-                del st.session_state["local_id"]
+                del st.session_state["last_id"]
                 st.rerun()
-    elif admin_password != "":
-        st.error("🔒 Incorrect Admin Password. Access Denied.")
+
+        # Update Section for Existing Packages
+        st.markdown("### 🔄 Update Live Parcel Location Pin & Status")
+        if len(st.session_state["world_link_vault"]) > 0:
+            sel_track = st.selectbox("Select Active Tracking Number to Modify", list(st.session_state["world_link_vault"].keys()))
+            
+            new_status_up = st.selectbox("Change Status To:", ["Manifest Created / Awaiting Dispatch", "Picked Up by Courier - In Transit to Hub", "Arrived at Distribution Facility Hub", "Out for Delivery with Transit Rider", "Delivered Successfully"], key="up_status")
+            up_loc_text = st.text_input("Change Current Location Description", value=st.session_state["world_link_vault"][sel_track]["current_loc"], key="up_loc")
+            
+            if st.button("Commit Status & Location Update"):
+                st.session_state["world_link_vault"][sel_track]["status"] = new_status_up
+                st.session_state["world_link_vault"][sel_track]["current_loc"] = up_loc_text
+                st.success(f"Tracking ID {sel_track} updated completely!")
+                st.rerun()
+                
+        st.markdown("### 📋 Session Shipment Logs")
