@@ -61,6 +61,7 @@ st.set_page_config(page_title="World Link Courier Service", layout="centered", p
 st.title("🌐 World Link Courier Service")
 st.markdown("##### *Fast, Reliable, and Secure Global Tracking Portal*")
 
+# Navigation Menu Options
 menu = st.sidebar.radio("Navigation Portal", ["Customer Tracking View", "Admin / Dispatch Dashboard"])
 
 # ----------------- CUSTOMER VIEW -----------------
@@ -82,7 +83,6 @@ if menu == "Customer Tracking View":
                 
                 st.info(f"**Current Status:** {status}")
                 
-                # NATIVE STREAMLIT MAP DRAWING BLOCK
                 try:
                     lat = float(result.iloc[0]["latitude"])
                     lon = float(result.iloc[0]["longitude"])
@@ -106,76 +106,87 @@ if menu == "Customer Tracking View":
         else:
             st.warning("Please type in a tracking number first.")
 
-# ----------------- ADMIN DASHBOARD -----------------
+# ----------------- ADMIN DASHBOARD (SECURE ACCESS) -----------------
 elif menu == "Admin / Dispatch Dashboard":
-    st.subheader("🛠️ World Link Operations Dashboard")
+    st.sidebar.markdown("---")
+    # Secret Password Field in Sidebar
+    admin_password = st.sidebar.text_input("Enter Admin Password", type="password")
     
-    st.markdown("### ➕ Register New Customer Parcel")
-    with st.form("add_parcel_form", clear_on_submit=True):
-        cust_name = st.text_input("Customer/Recipient Full Name")
-        parcel_info = st.text_area("Parcel Description & Delivery Address")
+    # 🔑 CHOOSE YOUR PASSWORD HERE: Change "admin123" to any password you want
+    if admin_password == "admin123":
+        st.subheader("🛠️ World Link Operations Dashboard")
         
-        st.markdown("##### 📍 Destination Coordinates (Optional)")
-        col1, col2 = st.columns(2)
-        with col1:
-            lat_input = st.text_input("Latitude (e.g., -1.2921)", value="0.0")
-        with col2:
-            lon_input = st.text_input("Longitude (e.g., 36.8219)", value="0.0")
+        st.markdown("### ➕ Register New Customer Parcel")
+        with st.form("add_parcel_form", clear_on_submit=True):
+            cust_name = st.text_input("Customer/Recipient Full Name")
+            parcel_info = st.text_area("Parcel Description & Delivery Address")
             
-        submitted = st.form_submit_button("Generate World Link Tracking & Save")
-        
-        if submitted:
-            if cust_name and parcel_info:
-                new_track_id = generate_tracking_id()
-                current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-                initial_status = "Manifest Created / Awaiting Dispatch"
+            st.markdown("##### 📍 Destination Coordinates (Optional)")
+            col1, col2 = st.columns(2)
+            with col1:
+                lat_input = st.text_input("Latitude (e.g., -1.2921)", value="0.0")
+            with col2:
+                lon_input = st.text_input("Longitude (e.g., 36.8219)", value="0.0")
                 
-                df = fetch_data()
-                new_row = pd.DataFrame([{
-                    "tracking_number": new_track_id,
-                    "customer_name": cust_name,
-                    "parcel_details": parcel_info,
-                    "status": initial_status,
-                    "date_created": current_time,
-                    "latitude": lat_input,
-                    "longitude": lon_input
-                }])
-                updated_df = pd.concat([df, new_row], ignore_index=True)
-                conn.update(spreadsheet=GOOGLE_SHEET_URL, data=updated_df)
-                
-                st.session_state["last_added_parcel"] = {
-                    "id": new_track_id, "name": cust_name, "details": parcel_info, "time": current_time, "status": initial_status
-                }
-                st.success(f"Shipment Successfully Saved to Cloud Database!")
-            else:
-                st.warning("Please complete both fields to log a new shipment.")
-
-    if "last_added_parcel" in st.session_state:
-        p = st.session_state["last_added_parcel"]
-        st.markdown("### 🧾 Generated Dispatch Receipt")
-        st.info(f"**Tracking Number:** {p['id']}")
-        receipt_code = build_receipt_html(p['id'], p['name'], p['details'], p['time'], p['status'])
-        st.components.v1.html(receipt_code, height=420, scrolling=True)
-        if st.button("Clear Receipt Preview"):
-            del st.session_state["last_added_parcel"]
-            st.rerun()
-
-    st.markdown("### 🔄 Update Active Parcel Status")
-    all_parcels = fetch_data()
-    
-    if not all_parcels.empty and len(all_parcels) > 0:
-        selected_track = st.selectbox("Select Tracking Number to Update", all_parcels["tracking_number"].values)
-        new_status = st.selectbox("Update Status To:", [
-            "Manifest Created / Awaiting Dispatch", "Picked Up by Courier", "In Transit to Hub", "Out for Delivery", "Delivered Successfully"
-        ])
-        
-        if st.button("Commit Status Update"):
-            all_parcels.loc[all_parcels["tracking_number"] == selected_track, "status"] = new_status
-            conn.update(spreadsheet=GOOGLE_SHEET_URL, data=all_parcels)
-            st.success(f"Tracking ID {selected_track} updated successfully to: **{new_status}**")
-            st.rerun() 
+            submitted = st.form_submit_button("Generate World Link Tracking & Save")
             
-        st.markdown("### 📋 Live Cloud Shipment Logs")
-        st.dataframe(all_parcels, use_container_width=True, hide_index=True)
+            if submitted:
+                if cust_name and parcel_info:
+                    new_track_id = generate_tracking_id()
+                    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    initial_status = "Manifest Created / Awaiting Dispatch"
+                    
+                    df = fetch_data()
+                    new_row = pd.DataFrame([{
+                        "tracking_number": new_track_id,
+                        "customer_name": cust_name,
+                        "parcel_details": parcel_info,
+                        "status": initial_status,
+                        "date_created": current_time,
+                        "latitude": lat_input,
+                        "longitude": lon_input
+                    }])
+                    updated_df = pd.concat([df, new_row], ignore_index=True)
+                    conn.update(spreadsheet=GOOGLE_SHEET_URL, data=updated_df)
+                    
+                    st.session_state["last_added_parcel"] = {
+                        "id": new_track_id, "name": cust_name, "details": parcel_info, "time": current_time, "status": initial_status
+                    }
+                    st.success(f"Shipment Successfully Saved to Cloud Database!")
+                else:
+                    st.warning("Please complete both fields to log a new shipment.")
+
+        if "last_added_parcel" in st.session_state:
+            p = st.session_state["last_added_parcel"]
+            st.markdown("### 🧾 Generated Dispatch Receipt")
+            st.info(f"**Tracking Number:** {p['id']}")
+            receipt_code = build_receipt_html(p['id'], p['name'], p['details'], p['time'], p['status'])
+            st.components.v1.html(receipt_code, height=420, scrolling=True)
+            if st.button("Clear Receipt Preview"):
+                del st.session_state["last_added_parcel"]
+                st.rerun()
+
+        st.markdown("### 🔄 Update Active Parcel Status")
+        all_parcels = fetch_data()
+        
+        if not all_parcels.empty and len(all_parcels) > 0:
+            selected_track = st.selectbox("Select Tracking Number to Update", all_parcels["tracking_number"].values)
+            new_status = st.selectbox("Update Status To:", [
+                "Manifest Created / Awaiting Dispatch", "Picked Up by Courier", "In Transit to Hub", "Out for Delivery", "Delivered Successfully"
+            ])
+            
+            if st.button("Commit Status Update"):
+                all_parcels.loc[all_parcels["tracking_number"] == selected_track, "status"] = new_status
+                conn.update(spreadsheet=GOOGLE_SHEET_URL, data=all_parcels)
+                st.success(f"Tracking ID {selected_track} updated successfully to: **{new_status}**")
+                st.rerun() 
+                
+            st.markdown("### 📋 Live Cloud Shipment Logs")
+            st.dataframe(all_parcels, use_container_width=True, hide_index=True)
+        else:
+            st.info("No active shipments registered in the system yet.")
+            
+    elif admin_password != "":
+        st.error("🔒 Incorrect Admin Password. Access Denied.")
     else:
-        st.info("No active shipments registered in the system yet.")
+        st.warning("🔒 This portal is restricted. Please enter the Admin Password in the sidebar to access controls.")
