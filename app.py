@@ -9,6 +9,7 @@ from datetime import datetime
 def init_db():
     conn = sqlite3.connect("world_link_local.db")
     cursor = conn.cursor()
+    # UPGRADED: Added current_location_text column to the database smoothly
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS parcels (
             tracking_number TEXT PRIMARY KEY,
@@ -17,7 +18,8 @@ def init_db():
             status TEXT,
             date_created TEXT,
             latitude REAL,
-            longitude REAL
+            longitude REAL,
+            current_location_text TEXT
         )
     """)
     conn.commit()
@@ -52,7 +54,7 @@ def build_receipt_html(track_id, name, details, date, status):
         <div style="font-size:13px; line-height:1.6;">
             <b>DATE/TIME:</b> {date}<br>
             <b>TRACKING NO:</b> <span style="font-size:16px; font-weight:bold;">{track_id}</span><br>
-            <b>INITIAL STATUS:</b> {status}<br>
+            <b>STATUS:</b> {status}<br>
         </div>
         <hr style="border-top:1px dashed #333; margin:10px 0;">
         <div style="font-size:13px; line-height:1.6;">
@@ -95,7 +97,14 @@ if menu == "Customer Tracking View":
                     details = result.iloc[0]["parcel_details"]
                     date_created = result.iloc[0]["date_created"]
                     
-                    st.info(f"📍 **Current Location Status:** {status}")
+                    # Read the text location securely
+                    curr_loc_text = result.iloc[0]["current_location_text"] if "current_location_text" in df.columns else "Main Hub"
+                    if not curr_loc_text or pd.isna(curr_loc_text):
+                        curr_loc_text = "Main Hub"
+                    
+                    # Display the text location prominently to the client
+                    st.info(f"📍 **Current Location:** {curr_loc_text}")
+                    st.warning(f"📊 **Delivery Status:** {status}")
                     
                     lat_val = result.iloc[0]["latitude"]
                     lon_val = result.iloc[0]["longitude"]
@@ -131,7 +140,9 @@ elif menu == "Admin / Dispatch Dashboard":
         
         cust_name = st.text_input("Customer Full Name")
         parcel_info = st.text_area("Parcel Details & Delivery Address")
-        st.markdown("##### 📍 Initial Sorting Location Coordinates")
+        
+        st.markdown("##### 📍 Initial Sorting Location Info")
+        init_loc_name = st.text_input("Initial Location Name", value="Main Sorting Hub")
         lat_input = st.text_input("Initial Latitude (Optional)", value="-1.2841")
         lon_input = st.text_input("Initial Longitude (Optional)", value="36.8155")
         
@@ -139,7 +150,7 @@ elif menu == "Admin / Dispatch Dashboard":
             if cust_name and parcel_info:
                 new_track_id = generate_tracking_id()
                 current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-                initial_status = "Manifest Created / Awaiting Dispatch at Main Sorting Hub"
+                initial_status = "Manifest Created / Awaiting Dispatch"
                 try:
                     lat_val = float(lat_input)
                     lon_val = float(lon_input)
@@ -149,9 +160,9 @@ elif menu == "Admin / Dispatch Dashboard":
                 conn = sqlite3.connect("world_link_local.db")
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO parcels (tracking_number, customer_name, parcel_details, status, date_created, latitude, longitude)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (new_track_id, cust_name, parcel_info, initial_status, current_time, lat_val, lon_val))
+                    INSERT INTO parcels (tracking_number, customer_name, parcel_details, status, date_created, latitude, longitude, current_location_text)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (new_track_id, cust_name, parcel_info, initial_status, current_time, lat_val, lon_val, init_loc_name))
                 conn.commit()
                 conn.close()
                 
@@ -174,7 +185,7 @@ elif menu == "Admin / Dispatch Dashboard":
                 del st.session_state["last_added_parcel"]
                 st.rerun()
 
-        # Update Parcel Status Section
+        # Update Parcel Status & Current Location Text Section
         st.markdown("### 🔄 Update Live Parcel Location Pin & Status")
         all_parcels = fetch_local_data()
         
@@ -190,23 +201,5 @@ elif menu == "Admin / Dispatch Dashboard":
                 "Delivered Successfully"
             ])
             
-            st.markdown("##### 📍 Pin Current Location Coordinates")
-            update_lat = st.text_input("Current Pin Latitude", value=str(current_row.iloc[0]["latitude"]))
-            update_lon = st.text_input("Current Pin Longitude", value=str(current_row.iloc[0]["longitude"]))
-            
-            if st.button("Commit Status & Pin Update"):
-                try:
-                    u_lat = float(update_lat)
-                    u_lon = float(update_lon)
-                except:
-                    u_lat, u_lon = 0.0, 0.0
-                    
-                conn = sqlite3.connect("world_link_local.db")
-                cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE parcels 
-                    SET status = ?, latitude = ?, longitude = ? 
-                    WHERE tracking_number = ?
-                """, (new_status, u_lat, u_lon, selected_track))
-                conn.commit()
-                conn.close()
+            # Fetch existing location string from selected tracking row
+            existing_loc_str = str(current_row.iloc[0]["current_location_text"]) if "current_location_text" in all_parcels.columns else "Main Hub"
