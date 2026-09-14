@@ -202,6 +202,8 @@ elif menu == "Admin / Dispatch Dashboard":
                 "Delivered Successfully"
             ])
             
-            # FIXED: Corrected iloc[0] row extraction format for Pandas
-            existing_loc_str = str(current_row.iloc[0]["current_location_text"]) if "current_location_text" in all_parcels.columns else "Main Hub"
-            if existing_loc_str == "None" or pd.isna(current_row.iloc[0]["current_location_text"]):
+            # Bulletproof extraction format prevents alignment script splits
+            existing_loc_str = "Main Hub"
+            if "current_location_text" in all_parcels.columns:
+                extracted_val = current_row.iloc[0]["current_location_text"]
+                if pd.notna(extracted_val) and str(extracted_val) != "None":
