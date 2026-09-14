@@ -2,89 +2,44 @@ import streamlit as st
 import pandas as pd
 import random
 import string
-import urllib.parse
-import urllib.request
-import smtplib
-import json
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import sqlite3
 from datetime import datetime
 
-# --- 🌐 GOOGLE SHEETS FALLBACK URL ---
-GOOGLE_CSV_URL = "https://google.com"
+# --- 📦 BULLETPROOF LOCAL DATABASE SETUP ---
+def init_db():
+    conn = sqlite3.connect("world_link_local.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS parcels (
+            tracking_number TEXT PRIMARY KEY,
+            customer_name TEXT,
+            parcel_details TEXT,
+            status TEXT,
+            date_created TEXT,
+            latitude REAL,
+            longitude REAL
+        )
+    """)
+    conn.commit()
+    conn.close()
 
-# --- 📧 SECURE AUTOMATED EMAIL SYSTEM SETUP ---
-SENDER_EMAIL = "worldlinkcourierservice78@gmail.com"
-SENDER_PASSWORD = "hagi qvsv ebro klvv"
+init_db()
 
-# High-speed data puller to view logs
-def fetch_data():
-    try:
-        df = pd.read_csv(GOOGLE_CSV_URL)
-        df.columns = df.columns.str.strip().str.lower()
-        return df
-    except:
-        return pd.DataFrame(columns=["tracking_number", "customer_name", "customer_phone", "customer_email", "parcel_details", "status", "date_created", "latitude", "longitude"])
+# High-speed data puller from local offline storage file
+def fetch_local_data():
+    conn = sqlite3.connect("world_link_local.db")
+    df = pd.read_sql_query("SELECT * FROM parcels", conn)
+    conn.close()
+    return df
 
-# Auto-generates local ID tracking references flawlessly
 def generate_tracking_id():
-    chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-    return f"WL-{chars}"
-
-# SILENT INSTANT CLOUD LOG SYSTEM (REPLACES FREEZING HTML REDIRECT)
-def send_cloud_log_backup(row_data):
-    try:
-        url = f"https://formsubmit.co{SENDER_EMAIL}"
-        headers = {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
-        req = urllib.request.Request(url, data=json.dumps(row_data).encode("utf-8"), headers=headers)
-        with urllib.request.urlopen(req) as response:
-            return True
-    except:
-        return False
-
-# SILENT BACKGROUND EMAIL SYSTEM
-def send_tracking_email(receiver_email, customer_name, tracking_number, parcel_details, initial_status):
-    try:
-        msg = MIMEMultipart()
-        msg["From"] = f"World Link Courier Service <{SENDER_EMAIL}>"
-        msg["To"] = receiver_email
-        msg["Subject"] = f"📦 Shipment Registered - {tracking_number} (World Link)"
-        
-        html_body = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; color: #333;">
-            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 8px; border-top: 5px solid #0056b3; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-                <h2 style="color: #0056b3; text-align: center; margin-top: 0;">🌐 WORLD LINK COURIER SERVICE</h2>
-                <p>Hello <b>{customer_name}</b>,</p>
-                <p>Your package has been successfully processed and registered into our logistics network for dispatch.</p>
-                
-                <div style="background-color: #f8f9fa; padding: 20px; border-left: 4px solid #28a745; margin: 20px 0; border-radius: 4px;">
-                    <h3 style="margin-top: 0; color: #28a745;">📋 Shipment Information</h3>
-                    <table style="width: 100%; font-size: 14px; line-height: 1.6;">
-                        <tr><td><b>Tracking Number:</b></td><td style="font-size: 16px; font-weight: bold; color: #0056b3;">{tracking_number}</td></tr>
-                        <tr><td><b>Current Status:</b></td><td>{initial_status}</td></tr>
-                        <tr><td><b>Details / Destination Address:</b></td><td>{parcel_details}</td></tr>
-                    </table>
-                </div>
-                <p style="text-align: center; margin-top: 30px;">
-                    <a href="https://streamlit.app" style="background-color: #0056b3; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Track Shipment Live</a>
-                </p>
-                <hr style="border: none; border-top: 1px solid #eeeeee; margin-top: 4px;">
-                <p style="font-size: 11px; color: #777; text-align: center;">Thank you for trusting World Link Logistics. This is an automated business notification.</p>
-            </div>
-        </body>
-        </html>
-        """
-        msg.attach(MIMEText(html_body, "html"))
-        
-        server = smtplib.SMTP("://gmail.com", 587)
-        server.starttls()
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        server.sendmail(SENDER_EMAIL, receiver_email, msg.as_string())
-        server.quit()
-        return True
-    except:
-        return False
+    df = fetch_local_data()
+    existing_ids = df["tracking_number"].values if not df.empty else []
+    while True:
+        chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        tracking_id = f"WL-{chars}"
+        if tracking_id not in existing_ids:
+            return tracking_id
 
 def build_receipt_html(track_id, name, details, date, status):
     return f"""
@@ -131,15 +86,15 @@ if menu == "Customer Tracking View":
     
     if st.button("Track Shipment"):
         if search_id:
-            df = fetch_data()
-            result = df[df["tracking_number"] == search_id] if not df.empty and "tracking_number" in df.columns else pd.DataFrame()
+            df = fetch_local_data()
+            result = df[df["tracking_number"] == search_id] if not df.empty else pd.DataFrame()
             
             if not result.empty:
                 st.success("Shipment Located!")
-                status = result.iloc[0]["status"] if "status" in df.columns else "In Transit"
-                cust_name = result.iloc[0]["customer_name"] if "customer_name" in df.columns else "Client"
-                details = result.iloc[0]["parcel_details"] if "parcel_details" in df.columns else "N/A"
-                date_created = result.iloc[0]["date_created"] if "date_created" in df.columns else "Recent"
+                status = result.iloc[0]["status"]
+                cust_name = result.iloc[0]["customer_name"]
+                details = result.iloc[0]["parcel_details"]
+                date_created = result.iloc[0]["date_created"]
                 
                 st.info(f"📍 **Current Location Status:** {status}")
                 
@@ -176,20 +131,87 @@ elif menu == "Admin / Dispatch Dashboard":
         st.subheader("🛠️ World Link Operations Dashboard")
         
         st.markdown("### ➕ Register New Customer Parcel")
-        
-        # Plain input form ensures components unfreeze instantly
-        cust_name = st.text_input("Customer Full Name")
-        cust_phone = st.text_input("Customer WhatsApp Phone (e.g., +254712345678)")
-        cust_email = st.text_input("Customer Email Address")
-        parcel_info = st.text_area("Parcel Details & Delivery Address")
-        
-        st.markdown("##### 📍 Initial Sorting Location Coordinates")
-        col1, col2 = st.columns(2)
-        with col1:
-            lat_input = st.text_input("Initial Latitude (Optional)", value="-1.2841")
-        with col2:
-            lon_input = st.text_input("Initial Longitude (Optional)", value="36.8155")
+        with st.form("add_parcel_form", clear_on_submit=True):
+            cust_name = st.text_input("Customer Full Name")
+            parcel_info = st.text_area("Parcel Details & Delivery Address")
             
-        if st.button("Generate World Link Tracking & Save"):
-            if cust_name and parcel_info and cust_phone and cust_email:
-                new_track_id = generate_tracking_id()
+            st.markdown("##### 📍 Initial Sorting Location Coordinates")
+            col1, col2 = st.columns(2)
+            with col1:
+                lat_input = st.text_input("Initial Latitude (Optional)", value="-1.2841")
+            with col2:
+                lon_input = st.text_input("Initial Longitude (Optional)", value="36.8155")
+                
+            submitted = st.form_submit_button("Generate World Link Tracking & Save")
+            
+            if submitted:
+                if cust_name and parcel_info:
+                    new_track_id = generate_tracking_id()
+                    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    initial_status = "Manifest Created / Awaiting Dispatch at Main Sorting Hub"
+                    
+                    try:
+                        lat_val = float(lat_input)
+                        lon_val = float(lon_input)
+                    except:
+                        lat_val, lon_val = 0.0, 0.0
+                    
+                    # Direct, instant database logging
+                    conn = sqlite3.connect("world_link_local.db")
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO parcels (tracking_number, customer_name, parcel_details, status, date_created, latitude, longitude)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (new_track_id, cust_name, parcel_info, initial_status, current_time, lat_val, lon_val))
+                    conn.commit()
+                    conn.close()
+                    
+                    st.session_state["last_added_parcel"] = {
+                        "id": new_track_id, "name": cust_name, "details": parcel_info, "time": current_time, "status": initial_status
+                    }
+                    st.success(f"Tracking Number Generated Successfully!")
+                    st.rerun()
+                else:
+                    st.warning("Please complete both Customer Name and Parcel Details fields.")
+
+        if "last_added_parcel" in st.session_state:
+            p = st.session_state["last_added_parcel"]
+            st.markdown("---")
+            st.info(f"👉 **Tracking Number Created:** `{p['id']}` (Give this to your customer)")
+            
+            st.markdown("### 🧾 Generated Dispatch Receipt")
+            receipt_code = build_receipt_html(p['id'], p['name'], p['details'], p['time'], p['status'])
+            st.components.v1.html(receipt_code, height=420, scrolling=True)
+            
+            if st.button("Clear Dashboard Registration Preview"):
+                del st.session_state["last_added_parcel"]
+                st.rerun()
+
+        # Update Parcel Status Section
+        st.markdown("### 🔄 Update Live Parcel Location Pin & Status")
+        all_parcels = fetch_local_data()
+        
+        if not all_parcels.empty:
+            selected_track = st.selectbox("Select Tracking Number to Update Location/Status", all_parcels["tracking_number"].values)
+            current_row = all_parcels[all_parcels["tracking_number"] == selected_track]
+            
+            new_status = st.selectbox("Update Status To:", [
+                "Manifest Created / Awaiting Dispatch", 
+                "Picked Up by Courier - In Transit to Hub", 
+                "Arrived at Distribution Facility Hub", 
+                "Out for Delivery with Transit Rider", 
+                "Delivered Successfully"
+            ])
+            
+            st.markdown("##### 📍 Pin Current Location Coordinates")
+            col3, col4 = st.columns(2)
+            with col3:
+                update_lat = st.text_input("Current Pin Latitude", value=str(current_row.iloc[0]["latitude"]))
+            with col4:
+                update_lon = st.text_input("Current Pin Longitude", value=str(current_row.iloc[0]["longitude"]))
+            
+            if st.button("Commit Status & Pin Update"):
+                try:
+                    u_lat = float(update_lat)
+                    u_lon = float(update_lon)
+                except:
