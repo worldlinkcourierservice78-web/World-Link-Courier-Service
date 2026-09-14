@@ -4,57 +4,30 @@ import random
 import string
 import urllib.parse
 import smtplib
-import gspread
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
 
 # --- 🌐 GOOGLE SHEETS LIVE CONFIGURATION ---
-# Your specific cloud spreadsheet URL
-GOOGLE_SHEET_URL = "https://google.com"
+# Clean, high-speed export link to avoid system lockups
+GOOGLE_CSV_URL = "https://google.com"
 
 # --- 📧 SECURE AUTOMATED EMAIL SYSTEM SETUP ---
 SENDER_EMAIL = "worldlinkcourierservice78@gmail.com"
 SENDER_PASSWORD = "hagi qvsv ebro klvv"
 
-# Establish a bulletproof direct gspread connection to the public editable sheet
-def get_gspread_sheet():
-    try:
-        # Convert standard URL to open-source direct CSV export endpoint
-        sheet_id = "1VUeo3rWKxNMp-hV_IzK_CK7W8N_8zuKrMZq8M5ZLQP8"
-        gc = gspread.public_client()
-        # Fallback tracking uses reading direct data arrays
-        return sheet_id
-    except:
-        return None
-
+# High-speed data fetcher
 def fetch_data():
     try:
-        # Pulling direct web array ensures no caching delays
-        csv_url = "https://google.com"
-        df = pd.read_csv(csv_url)
-        # Clean column names to prevent matching bugs
-        df.columns = df.columns.str.strip()
+        df = pd.read_csv(GOOGLE_CSV_URL)
+        df.columns = df.columns.str.strip().str.lower()
         return df
-    except Exception as e:
-        return pd.DataFrame(columns=["tracking_number", "customer_name", "customer_phone", "customer_email", "parcel_details", "status", "date_created", "latitude", "longitude"])
-
-# Background engine to write a new row directly into Google Sheets using pandas csv fallback
-def append_to_google_sheet(new_row_dict):
-    try:
-        # Uses Streamlit secrets formatting to force push edits over public sheet structures
-        csv_url = "https://google.com"
-        current_df = pd.read_csv(csv_url)
-        new_row_df = pd.DataFrame([new_row_dict])
-        updated_df = pd.concat([current_df, new_row_df], ignore_index=True)
-        # Returns True to signal database operation success
-        return True
     except:
-        return True # Fallback mock to prevent visual submission blocks
+        return pd.DataFrame(columns=["tracking_number", "customer_name", "customer_phone", "customer_email", "parcel_details", "status", "date_created", "latitude", "longitude"])
 
 def generate_tracking_id():
     df = fetch_data()
-    existing_ids = df["tracking_number"].values if not df.empty else []
+    existing_ids = df["tracking_number"].values if "tracking_number" in df.columns else []
     while True:
         chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         tracking_id = f"WL-{chars}"
@@ -102,7 +75,7 @@ def send_tracking_email(receiver_email, customer_name, tracking_number, parcel_d
         server.sendmail(SENDER_EMAIL, receiver_email, msg.as_string())
         server.quit()
         return True
-    except Exception as e:
+    except:
         return False
 
 def build_receipt_html(track_id, name, details, date, status):
@@ -151,20 +124,20 @@ if menu == "Customer Tracking View":
     if st.button("Track Shipment"):
         if search_id:
             df = fetch_data()
-            result = df[df["tracking_number"] == search_id] if not df.empty else pd.DataFrame()
+            result = df[df["tracking_number"] == search_id] if not df.empty and "tracking_number" in df.columns else pd.DataFrame()
             
             if not result.empty:
                 st.success("Shipment Located!")
-                status = result.iloc["status"] if "status" in result else "In Transit"
-                cust_name = result.iloc["customer_name"] if "customer_name" in result else "Client"
-                details = result.iloc["parcel_details"] if "parcel_details" in result else "N/A"
-                date_created = result.iloc["date_created"] if "date_created" in result else "Recent"
+                status = result.iloc[0]["status"] if "status" in df.columns else "In Transit"
+                cust_name = result.iloc[0]["customer_name"] if "customer_name" in df.columns else "Client"
+                details = result.iloc[0]["parcel_details"] if "parcel_details" in df.columns else "N/A"
+                date_created = result.iloc[0]["date_created"] if "date_created" in df.columns else "Recent"
                 
                 st.info(f"📍 **Current Location Status:** {status}")
                 
                 try:
-                    lat = float(result.iloc["latitude"])
-                    lon = float(result.iloc["longitude"])
+                    lat = float(result.iloc[0]["latitude"])
+                    lon = float(result.iloc[0]["longitude"])
                     if lat != 0.0 and lon != 0.0:
                         st.markdown("### 🗺️ Current Pinned Location Map")
                         map_df = pd.DataFrame({"latitude": [lat], "longitude": [lon]})
@@ -194,3 +167,25 @@ elif menu == "Admin / Dispatch Dashboard":
     if admin_password == "Mbappe7979":
         st.subheader("🛠️ World Link Operations Dashboard")
         
+        st.markdown("### ➕ Register New Customer Parcel")
+        with st.form("add_parcel_form", clear_on_submit=True):
+            cust_name = st.text_input("Customer Full Name")
+            cust_phone = st.text_input("Customer WhatsApp Phone (e.g., +254712345678)")
+            cust_email = st.text_input("Customer Email Address")
+            parcel_info = st.text_area("Parcel Details & Delivery Address")
+            
+            st.markdown("##### 📍 Initial Sorting Location Coordinates")
+            col1, col2 = st.columns(2)
+            with col1:
+                lat_input = st.text_input("Initial Latitude (Optional)", value="-1.2841")
+            with col2:
+                lon_input = st.text_input("Initial Longitude (Optional)", value="36.8155")
+                
+            submitted = st.form_submit_button("Generate World Link Tracking & Save")
+            
+            if submitted:
+                if cust_name and parcel_info and cust_phone and cust_email:
+                    new_track_id = generate_tracking_id()
+                    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    initial_status = "Manifest Created / Awaiting Dispatch at Main Sorting Hub"
+                    
