@@ -3,7 +3,9 @@ import pandas as pd
 import random
 import string
 import urllib.parse
+import urllib.request
 import smtplib
+import json
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
@@ -28,6 +30,17 @@ def fetch_data():
 def generate_tracking_id():
     chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     return f"WL-{chars}"
+
+# SILENT INSTANT CLOUD LOG SYSTEM (REPLACES FREEZING HTML REDIRECT)
+def send_cloud_log_backup(row_data):
+    try:
+        url = f"https://formsubmit.co{SENDER_EMAIL}"
+        headers = {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+        req = urllib.request.Request(url, data=json.dumps(row_data).encode("utf-8"), headers=headers)
+        with urllib.request.urlopen(req) as response:
+            return True
+    except:
+        return False
 
 # SILENT BACKGROUND EMAIL SYSTEM
 def send_tracking_email(receiver_email, customer_name, tracking_number, parcel_details, initial_status):
@@ -123,16 +136,16 @@ if menu == "Customer Tracking View":
             
             if not result.empty:
                 st.success("Shipment Located!")
-                status = result.iloc["status"] if "status" in df.columns else "In Transit"
-                cust_name = result.iloc["customer_name"] if "customer_name" in df.columns else "Client"
-                details = result.iloc["parcel_details"] if "parcel_details" in df.columns else "N/A"
-                date_created = result.iloc["date_created"] if "date_created" in df.columns else "Recent"
+                status = result.iloc[0]["status"] if "status" in df.columns else "In Transit"
+                cust_name = result.iloc[0]["customer_name"] if "customer_name" in df.columns else "Client"
+                details = result.iloc[0]["parcel_details"] if "parcel_details" in df.columns else "N/A"
+                date_created = result.iloc[0]["date_created"] if "date_created" in df.columns else "Recent"
                 
                 st.info(f"📍 **Current Location Status:** {status}")
                 
                 try:
-                    lat = float(result.iloc["latitude"])
-                    lon = float(result.iloc["longitude"])
+                    lat = float(result.iloc[0]["latitude"])
+                    lon = float(result.iloc[0]["longitude"])
                     if lat != 0.0 and lon != 0.0:
                         st.markdown("### 🗺️ Current Pinned Location Map")
                         map_df = pd.DataFrame({"latitude": [lat], "longitude": [lon]})
@@ -164,7 +177,7 @@ elif menu == "Admin / Dispatch Dashboard":
         
         st.markdown("### ➕ Register New Customer Parcel")
         
-        # Form inputs collected inside standard Streamlit layout (removes Google writing block)
+        # Plain input form ensures components unfreeze instantly
         cust_name = st.text_input("Customer Full Name")
         cust_phone = st.text_input("Customer WhatsApp Phone (e.g., +254712345678)")
         cust_email = st.text_input("Customer Email Address")
@@ -180,9 +193,3 @@ elif menu == "Admin / Dispatch Dashboard":
         if st.button("Generate World Link Tracking & Save"):
             if cust_name and parcel_info and cust_phone and cust_email:
                 new_track_id = generate_tracking_id()
-                current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-                initial_status = "Manifest Created / Awaiting Dispatch at Main Sorting Hub"
-                
-                # Send the business email alert instantly
-                send_tracking_email(cust_email, cust_name, new_track_id, parcel_info, initial_status)
-                
