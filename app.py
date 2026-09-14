@@ -165,11 +165,12 @@ if menu == "Admin / Dispatch Dashboard":
                 del st.session_state["rcpt_id"]
                 st.rerun()
 
+        # --- 🔄 FIXED PERMANENT UNLOCKED UPDATE SECTION ---
+        # Placed completely flat so it displays values regardless of the spreadsheet rows state
         st.markdown("### 🔄 Update Live Parcel Location Pin & Status")
-        all_parcels = fetch_cloud_data()
-        if not all_parcels.empty and "tracking_number" in all_parcels.columns:
-            sel_track = st.selectbox("Select Tracking Number to Update Location/Status", all_parcels["tracking_number"].values)
-            sel_row = all_parcels[all_parcels["tracking_number"] == sel_track]
-            
-            new_status = st.selectbox("Update Status To:", ["Manifest Created / Awaiting Dispatch", "Picked Up by Courier - In Transit to Hub", "Arrived at Distribution Facility Hub", "Out for Delivery with Transit Rider", "Delivered Successfully"])
-            
+        
+        # Free text code fallback box
+        input_track_id = st.text_input("Enter Active Tracking Number to Modify (e.g., WL-XXXXXX)").strip().upper()
+        
+        new_status = st.selectbox("Update Status To:", ["Manifest Created / Awaiting Dispatch", "Picked Up by Courier - In Transit to Hub", "Arrived at Distribution Facility Hub", "Out for Delivery with Transit Rider", "Delivered Successfully"])
+        up_loc_text = st.text_input("Edit Current Location Description", value="Main Sorting Hub")
