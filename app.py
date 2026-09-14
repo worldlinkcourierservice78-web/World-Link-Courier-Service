@@ -112,21 +112,21 @@ if menu == "Customer Tracking View":
                 if not result.empty:
                     st.success("Shipment Located!")
                     
-                    row_idx = result.index[0]
-                    status = result.loc[row_idx, "status"]
-                    cust_name = result.loc[row_idx, "customer_name"]
-                    details = result.loc[row_idx, "parcel_details"]
-                    date_created = result.loc[row_idx, "date_created"]
+                    # Safe item extraction from matching dataframe row
+                    status = str(result.iloc[0]["status"])
+                    cust_name = str(result.iloc[0]["customer_name"])
+                    details = str(result.iloc[0]["parcel_details"])
+                    date_created = str(result.iloc[0]["date_created"])
                     
-                    s_name = str(result.loc[row_idx, "sender_name"]) if "sender_name" in df.columns else "N/A"
-                    s_addr = str(result.loc[row_idx, "sender_address"]) if "sender_address" in df.columns else "N/A"
-                    curr_loc_text = str(result.loc[row_idx, "current_location_text"]) if "current_location_text" in df.columns else "Main Hub"
+                    s_name = str(result.iloc[0]["sender_name"]) if "sender_name" in df.columns else "N/A"
+                    s_addr = str(result.iloc[0]["sender_address"]) if "sender_address" in df.columns else "N/A"
+                    curr_loc_text = str(result.iloc[0]["current_location_text"]) if "current_location_text" in df.columns else "Main Hub"
                     
                     st.info(f"📍 **Current Location:** {curr_loc_text}")
                     st.warning(f"📊 **Delivery Status:** {status}")
                     
-                    lat_val = result.loc[row_idx, "latitude"]
-                    lon_val = result.loc[row_idx, "longitude"]
+                    lat_val = result.iloc[0]["latitude"]
+                    lon_val = result.iloc[0]["longitude"]
                     if pd.notna(lat_val) and pd.notna(lon_val) and lat_val != 0.0 and lon_val != 0.0:
                         st.markdown("### 🗺️ Current Pinned Location Map")
                         map_df = pd.DataFrame({"latitude": [float(lat_val)], "longitude": [float(lon_val)]})
@@ -194,13 +194,10 @@ elif menu == "Admin / Dispatch Dashboard":
                     conn.commit()
                     conn.close()
                     
-                    # FIXED BRACKETS FLATTENED: Packed cleanly onto single tracking references to avoid line cutoffs
-                    st.success(f"Tracking Number Generated Successfully! Code: {new_track_id}")
-                    st.info("🔄 Refresh the tracking panel to print or process updates.")
+                    # RESTORED: Saved generated references directly inside session token keys to display the receipt box instantly
+                    st.session_state["active_receipt"] = {
+                        "id": new_track_id, "name": cust_name, "details": parcel_info, "time": current_time, "status": initial_status, "s_name": sender_name_in, "s_addr": sender_addr_in
+                    }
+                    st.success(f"Tracking Number Generated Successfully!")
+                    st.rerun()
                 else:
-                    st.warning("Please complete Sender Name, Recipient Name, and Parcel Details fields.")
-
-        # Update Parcel Status Section
-        st.markdown("### 🔄 Update Live Parcel Location Pin & Status")
-        all_parcels = fetch_local_data()
-        
