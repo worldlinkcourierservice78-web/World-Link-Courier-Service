@@ -8,15 +8,14 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
 
-# --- 🌐 GOOGLE SHEETS LIVE CONFIGURATION ---
-# Clean, high-speed export link to avoid system lockups
+# --- 🌐 GOOGLE SHEETS FALLBACK URL ---
 GOOGLE_CSV_URL = "https://google.com"
 
 # --- 📧 SECURE AUTOMATED EMAIL SYSTEM SETUP ---
 SENDER_EMAIL = "worldlinkcourierservice78@gmail.com"
 SENDER_PASSWORD = "hagi qvsv ebro klvv"
 
-# High-speed data fetcher
+# High-speed data puller to view logs
 def fetch_data():
     try:
         df = pd.read_csv(GOOGLE_CSV_URL)
@@ -25,14 +24,10 @@ def fetch_data():
     except:
         return pd.DataFrame(columns=["tracking_number", "customer_name", "customer_phone", "customer_email", "parcel_details", "status", "date_created", "latitude", "longitude"])
 
+# Auto-generates local ID tracking references flawlessly
 def generate_tracking_id():
-    df = fetch_data()
-    existing_ids = df["tracking_number"].values if "tracking_number" in df.columns else []
-    while True:
-        chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        tracking_id = f"WL-{chars}"
-        if tracking_id not in existing_ids:
-            return tracking_id
+    chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    return f"WL-{chars}"
 
 # SILENT BACKGROUND EMAIL SYSTEM
 def send_tracking_email(receiver_email, customer_name, tracking_number, parcel_details, initial_status):
@@ -69,7 +64,7 @@ def send_tracking_email(receiver_email, customer_name, tracking_number, parcel_d
         """
         msg.attach(MIMEText(html_body, "html"))
         
-        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server = smtplib.SMTP("://gmail.com", 587)
         server.starttls()
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.sendmail(SENDER_EMAIL, receiver_email, msg.as_string())
@@ -128,16 +123,16 @@ if menu == "Customer Tracking View":
             
             if not result.empty:
                 st.success("Shipment Located!")
-                status = result.iloc[0]["status"] if "status" in df.columns else "In Transit"
-                cust_name = result.iloc[0]["customer_name"] if "customer_name" in df.columns else "Client"
-                details = result.iloc[0]["parcel_details"] if "parcel_details" in df.columns else "N/A"
-                date_created = result.iloc[0]["date_created"] if "date_created" in df.columns else "Recent"
+                status = result.iloc["status"] if "status" in df.columns else "In Transit"
+                cust_name = result.iloc["customer_name"] if "customer_name" in df.columns else "Client"
+                details = result.iloc["parcel_details"] if "parcel_details" in df.columns else "N/A"
+                date_created = result.iloc["date_created"] if "date_created" in df.columns else "Recent"
                 
                 st.info(f"📍 **Current Location Status:** {status}")
                 
                 try:
-                    lat = float(result.iloc[0]["latitude"])
-                    lon = float(result.iloc[0]["longitude"])
+                    lat = float(result.iloc["latitude"])
+                    lon = float(result.iloc["longitude"])
                     if lat != 0.0 and lon != 0.0:
                         st.markdown("### 🗺️ Current Pinned Location Map")
                         map_df = pd.DataFrame({"latitude": [lat], "longitude": [lon]})
@@ -168,24 +163,26 @@ elif menu == "Admin / Dispatch Dashboard":
         st.subheader("🛠️ World Link Operations Dashboard")
         
         st.markdown("### ➕ Register New Customer Parcel")
-        with st.form("add_parcel_form", clear_on_submit=True):
-            cust_name = st.text_input("Customer Full Name")
-            cust_phone = st.text_input("Customer WhatsApp Phone (e.g., +254712345678)")
-            cust_email = st.text_input("Customer Email Address")
-            parcel_info = st.text_area("Parcel Details & Delivery Address")
+        
+        # Form inputs collected inside standard Streamlit layout (removes Google writing block)
+        cust_name = st.text_input("Customer Full Name")
+        cust_phone = st.text_input("Customer WhatsApp Phone (e.g., +254712345678)")
+        cust_email = st.text_input("Customer Email Address")
+        parcel_info = st.text_area("Parcel Details & Delivery Address")
+        
+        st.markdown("##### 📍 Initial Sorting Location Coordinates")
+        col1, col2 = st.columns(2)
+        with col1:
+            lat_input = st.text_input("Initial Latitude (Optional)", value="-1.2841")
+        with col2:
+            lon_input = st.text_input("Initial Longitude (Optional)", value="36.8155")
             
-            st.markdown("##### 📍 Initial Sorting Location Coordinates")
-            col1, col2 = st.columns(2)
-            with col1:
-                lat_input = st.text_input("Initial Latitude (Optional)", value="-1.2841")
-            with col2:
-                lon_input = st.text_input("Initial Longitude (Optional)", value="36.8155")
+        if st.button("Generate World Link Tracking & Save"):
+            if cust_name and parcel_info and cust_phone and cust_email:
+                new_track_id = generate_tracking_id()
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+                initial_status = "Manifest Created / Awaiting Dispatch at Main Sorting Hub"
                 
-            submitted = st.form_submit_button("Generate World Link Tracking & Save")
-            
-            if submitted:
-                if cust_name and parcel_info and cust_phone and cust_email:
-                    new_track_id = generate_tracking_id()
-                    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    initial_status = "Manifest Created / Awaiting Dispatch at Main Sorting Hub"
-                    
+                # Send the business email alert instantly
+                send_tracking_email(cust_email, cust_name, new_track_id, parcel_info, initial_status)
+                
