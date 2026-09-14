@@ -17,11 +17,23 @@ def init_db():
             status TEXT,
             date_created TEXT,
             latitude REAL,
-            longitude REAL
+            longitude REAL,
+            current_location_text TEXT,
+            sender_name TEXT,
+            sender_address TEXT
         )
     """)
+    # Safely handle database updates for existing fields
     try:
         cursor.execute("ALTER TABLE parcels ADD COLUMN current_location_text TEXT DEFAULT 'Main Hub'")
+    except sqlite3.OperationalError:
+        pass 
+    try:
+        cursor.execute("ALTER TABLE parcels ADD COLUMN sender_name TEXT DEFAULT 'N/A'")
+    except sqlite3.OperationalError:
+        pass 
+    try:
+        cursor.execute("ALTER TABLE parcels ADD COLUMN sender_address TEXT DEFAULT 'N/A'")
     except sqlite3.OperationalError:
         pass 
         
@@ -45,7 +57,7 @@ def generate_tracking_id():
         if tracking_id not in existing_ids:
             return tracking_id
 
-def build_receipt_html(track_id, name, details, date, status):
+def build_receipt_html(track_id, name, details, date, status, s_name, s_addr):
     return f"""
     <div id="receipt-print-area" style="padding:20px; border:2px dashed #333; max-width:450px; margin:0 auto; font-family:monospace; background-color:#fff; color:#000;">
         <div style="text-align:center; margin-bottom:10px;">
@@ -61,7 +73,12 @@ def build_receipt_html(track_id, name, details, date, status):
         </div>
         <hr style="border-top:1px dashed #333; margin:10px 0;">
         <div style="font-size:13px; line-height:1.6;">
-            <b style="font-size:14px;">SHIPMENT MANIFEST</b><br>
+            <b style="font-size:14px;">🕵️ SENDER DETAILS</b><br>
+            <div style="margin-top:5px; padding-left:10px; margin-bottom:10px;">
+                <b>SENDER NAME:</b> {s_name}<br>
+                <b>SENDER ADDRESS:</b> {s_addr}<br>
+            </div>
+            <b style="font-size:14px;">📦 RECIPIENT MANIFEST</b><br>
             <div style="margin-top:5px; padding-left:10px;">
                 <b>CUSTOMER:</b> {name}<br>
                 <b>DETAILS & DESTINATION:</b><br>
@@ -96,12 +113,13 @@ if menu == "Customer Tracking View":
                 if not result.empty:
                     st.success("Shipment Located!")
                     
-                    # Extract values safely using standard row indices
-                    row_idx = result.index[0]
+                    row_idx = result.index
                     status = result.at[row_idx, "status"]
                     cust_name = result.at[row_idx, "customer_name"]
                     details = result.at[row_idx, "parcel_details"]
                     date_created = result.at[row_idx, "date_created"]
+                    s_name = result.at[row_idx, "sender_name"] if "sender_name" in df.columns else "N/A"
+                    s_addr = result.at[row_idx, "sender_address"] if "sender_address" in df.columns else "N/A"
                     
                     curr_loc_text = result.at[row_idx, "current_location_text"] if "current_location_text" in df.columns else "Main Hub"
                     if not curr_loc_text or pd.isna(curr_loc_text):
@@ -118,14 +136,15 @@ if menu == "Customer Tracking View":
                         st.map(map_df, zoom=14)
                     
                     with st.expander("📄 View Shipment Manifest Details", expanded=True):
+                        st.write(f"**Sender:** {s_name} ({s_addr})")
                         st.write(f"**Recipient/Customer:** {cust_name}")
                         st.write(f"**Description & Destination:** {details}")
                         st.write(f"**Dispatch Date:** {date_created}")
                         
                     st.markdown("---")
                     st.markdown("### 🖨️ Customer Copy Receipt")
-                    receipt_html = build_receipt_html(search_id, cust_name, details, date_created, status)
-                    st.components.v1.html(receipt_html, height=420, scrolling=True)
+                    receipt_html = build_receipt_html(search_id, cust_name, details, date_created, status, s_name, s_addr)
+                    st.components.v1.html(receipt_html, height=480, scrolling=True)
                 else:
                     st.error("Tracking number not recognized by World Link. Please verify your number.")
             else:
@@ -142,69 +161,45 @@ elif menu == "Admin / Dispatch Dashboard":
         st.subheader("🛠️ World Link Operations Dashboard")
         st.markdown("### ➕ Register New Customer Parcel")
         
-        cust_name = st.text_input("Customer Full Name")
-        parcel_info = st.text_area("Parcel Details & Delivery Address")
-        
-        st.markdown("##### 📍 Initial Sorting Location Info")
-        init_loc_name = st.text_input("Initial Location Name", value="Main Sorting Hub")
-        lat_input = st.text_input("Initial Latitude (Optional)", value="-1.2841")
-        lon_input = st.text_input("Initial Longitude (Optional)", value="36.8155")
-        
-        if st.button("Generate World Link Tracking & Save"):
-            if cust_name and parcel_info:
-                new_track_id = generate_tracking_id()
-                current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-                initial_status = "Manifest Created / Awaiting Dispatch"
-                try:
-                    lat_val = float(lat_input)
-                    lon_val = float(lon_input)
-                except:
-                    lat_val, lon_val = 0.0, 0.0
-                
-                conn = sqlite3.connect("world_link_local.db")
-                cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO parcels (tracking_number, customer_name, parcel_details, status, date_created, latitude, longitude, current_location_text)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (new_track_id, cust_name, parcel_info, initial_status, current_time, lat_val, lon_val, init_loc_name))
-                conn.commit()
-                conn.close()
-                
-                st.session_state["last_added_parcel"] = {
-                    "id": new_track_id, "name": cust_name, "details": parcel_info, "time": current_time, "status": initial_status
-                }
-                st.success(f"Tracking Number Generated Successfully!")
-                st.rerun()
-            else:
-                st.warning("Please complete both Customer Name and Parcel Details fields.")
-
-        if "last_added_parcel" in st.session_state:
-            p = st.session_state["last_added_parcel"]
-            st.markdown("---")
-            st.info(f"👉 **Tracking Number Created:** `{p['id']}` (Give this to your customer)")
-            st.markdown("### 🧾 Generated Dispatch Receipt")
-            receipt_code = build_receipt_html(p['id'], p['name'], p['details'], p['time'], p['status'])
-            st.components.v1.html(receipt_code, height=420, scrolling=True)
-            if st.button("Clear Dashboard Registration Preview"):
-                del st.session_state["last_added_parcel"]
-                st.rerun()
-
-        # Update Parcel Status Section
-        st.markdown("### 🔄 Update Live Parcel Location Pin & Status")
-        all_parcels = fetch_local_data()
-        
-        if not all_parcels.empty:
-            selected_track = st.selectbox("Select Tracking Number to Update Location/Status", all_parcels["tracking_number"].values)
-            current_row = all_parcels[all_parcels["tracking_number"] == selected_track]
-            current_idx = current_row.index[0]
+        with st.form("add_parcel_form", clear_on_submit=True):
+            st.markdown("##### 🕵️ Sender Information")
+            sender_name_in = st.text_input("Sender Full Name")
+            sender_addr_in = st.text_input("Sender Address / Branch Location")
             
-            new_status = st.selectbox("Update Status To:", [
-                "Manifest Created / Awaiting Dispatch", 
-                "Picked Up by Courier - In Transit to Hub", 
-                "Arrived at Distribution Facility Hub", 
-                "Out for Delivery with Transit Rider", 
-                "Delivered Successfully"
-            ])
+            st.markdown("##### 📦 Recipient Information")
+            cust_name = st.text_input("Recipient Full Name")
+            parcel_info = st.text_area("Parcel Details & Delivery Destination Address")
             
-            # FIXED: Extracted cleanly using row indices via .at method to prevent index crashes
-            existing_loc_str = "Main Hub"
+            st.markdown("##### 📍 Initial Sorting Location Info")
+            init_loc_name = st.text_input("Initial Location Name", value="Main Sorting Hub")
+            lat_input = st.text_input("Initial Latitude (Optional)", value="-1.2841")
+            lon_input = st.text_input("Initial Longitude (Optional)", value="36.8155")
+            
+            submitted = st.form_submit_button("Generate World Link Tracking & Save")
+            
+            if submitted:
+                if cust_name and parcel_info and sender_name_in:
+                    new_track_id = generate_tracking_id()
+                    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    initial_status = "Manifest Created / Awaiting Dispatch"
+                    try:
+                        lat_val = float(lat_input)
+                        lon_val = float(lon_input)
+                    except:
+                        lat_val, lon_val = 0.0, 0.0
+                    
+                    conn = sqlite3.connect("world_link_local.db")
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO parcels (tracking_number, customer_name, parcel_details, status, date_created, latitude, longitude, current_location_text, sender_name, sender_address)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (new_track_id, cust_name, parcel_info, initial_status, current_time, lat_val, lon_val, init_loc_name, sender_name_in, sender_addr_in))
+                    conn.commit()
+                    conn.close()
+                    
+                    st.session_state["last_added_parcel"] = {
+                        "id": new_track_id, "name": cust_name, "details": parcel_info, "time": current_time, "status": initial_status, "s_name": sender_name_in, "s_addr": sender_addr_in
+                    }
+                    st.success(f"Tracking Number Generated Successfully!")
+                    st.rerun()
+                else:
