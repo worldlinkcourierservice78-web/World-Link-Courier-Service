@@ -6,19 +6,16 @@ from datetime import datetime
 from st_files_connection import FilesConnection
 
 # --- GOOGLE SHEETS CONFIGURATION ---
-# Your specific cloud database link is now integrated below:
 GOOGLE_SHEET_URL = "https://google.com"
 
-# Establish secure connection to your cloud Google Sheet using FilesConnection
 conn = st.connection("gsheets", type=FilesConnection)
 
 def fetch_data():
     try:
         return conn.read(GOOGLE_SHEET_URL, input_format="csv", ttl="0s")
     except:
-        return pd.DataFrame(columns=["tracking_number", "customer_name", "parcel_details", "status", "date_created"])
+        return pd.DataFrame(columns=["tracking_number", "customer_name", "parcel_details", "status", "date_created", "latitude", "longitude"])
 
-# Helper function to generate a unique random tracking number across the cloud database
 def generate_tracking_id():
     df = fetch_data()
     existing_ids = df["tracking_number"].values if not df.empty else []
@@ -28,7 +25,6 @@ def generate_tracking_id():
         if tracking_id not in existing_ids:
             return tracking_id
 
-# Helper function to format the printable receipt layout
 def build_receipt_html(track_id, name, details, date, status):
     return f"""
     <div id="receipt-print-area" style="padding:20px; border:2px dashed #333; max-width:450px; margin:0 auto; font-family:monospace; background-color:#fff; color:#000;">
@@ -79,12 +75,22 @@ if menu == "Customer Tracking View":
             
             if not result.empty:
                 st.success("Shipment Located!")
-                status = result.iloc["status"]
-                cust_name = result.iloc["customer_name"]
-                details = result.iloc["parcel_details"]
-                date_created = result.iloc["date_created"]
+                status = result.iloc[0]["status"]
+                cust_name = result.iloc[0]["customer_name"]
+                details = result.iloc[0]["parcel_details"]
+                date_created = result.iloc[0]["date_created"]
                 
                 st.info(f"**Current Status:** {status}")
+                
+                # NATIVE STREAMLIT MAP DRAWING BLOCK
+                try:
+                    lat = float(result.iloc[0]["latitude"])
+                    lon = float(result.iloc[0]["longitude"])
+                    st.markdown("### 🗺️ Live Delivery Destination Map")
+                    map_df = pd.DataFrame({"latitude": [lat], "longitude": [lon]})
+                    st.map(map_df, zoom=12)
+                except Exception:
+                    st.warning("⚠️ No map coordinates registered for this shipment address yet.")
                 
                 with st.expander("📄 View Shipment Manifest Details", expanded=True):
                     st.write(f"**Recipient/Customer:** {cust_name}")
@@ -108,6 +114,14 @@ elif menu == "Admin / Dispatch Dashboard":
     with st.form("add_parcel_form", clear_on_submit=True):
         cust_name = st.text_input("Customer/Recipient Full Name")
         parcel_info = st.text_area("Parcel Description & Delivery Address")
+        
+        st.markdown("##### 📍 Destination Coordinates (Optional)")
+        col1, col2 = st.columns(2)
+        with col1:
+            lat_input = st.text_input("Latitude (e.g., -1.2921)", value="0.0")
+        with col2:
+            lon_input = st.text_input("Longitude (e.g., 36.8219)", value="0.0")
+            
         submitted = st.form_submit_button("Generate World Link Tracking & Save")
         
         if submitted:
@@ -116,14 +130,15 @@ elif menu == "Admin / Dispatch Dashboard":
                 current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
                 initial_status = "Manifest Created / Awaiting Dispatch"
                 
-                # Fetch recent database, append new row data, and update cloud sheet
                 df = fetch_data()
                 new_row = pd.DataFrame([{
                     "tracking_number": new_track_id,
                     "customer_name": cust_name,
                     "parcel_details": parcel_info,
                     "status": initial_status,
-                    "date_created": current_time
+                    "date_created": current_time,
+                    "latitude": lat_input,
+                    "longitude": lon_input
                 }])
                 updated_df = pd.concat([df, new_row], ignore_index=True)
                 conn.update(spreadsheet=GOOGLE_SHEET_URL, data=updated_df)
@@ -141,7 +156,6 @@ elif menu == "Admin / Dispatch Dashboard":
         st.info(f"**Tracking Number:** {p['id']}")
         receipt_code = build_receipt_html(p['id'], p['name'], p['details'], p['time'], p['status'])
         st.components.v1.html(receipt_code, height=420, scrolling=True)
-        st.caption("💡 *To print, right-click inside the dashed box above and select **Print**.*")
         if st.button("Clear Receipt Preview"):
             del st.session_state["last_added_parcel"]
             st.rerun()
@@ -165,5 +179,3 @@ elif menu == "Admin / Dispatch Dashboard":
         st.dataframe(all_parcels, use_container_width=True, hide_index=True)
     else:
         st.info("No active shipments registered in the system yet.")
-
-
