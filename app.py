@@ -3,11 +3,18 @@ import pandas as pd
 import random
 import string
 import urllib.parse
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from datetime import datetime
 from st_files_connection import FilesConnection
 
 # --- GOOGLE SHEETS CONFIGURATION ---
 GOOGLE_SHEET_URL = "https://google.com"
+
+# --- 📧 SECURE AUTOMATED EMAIL SYSTEM SETUP (CONFIGURED) ---
+SENDER_EMAIL = "worldlinkcourierservice78@gmail.com"
+SENDER_PASSWORD = "hagi qvsv ebro klvv"
 
 conn = st.connection("gsheets", type=FilesConnection)
 
@@ -15,7 +22,7 @@ def fetch_data():
     try:
         return conn.read(GOOGLE_SHEET_URL, input_format="csv", ttl="0s")
     except:
-        return pd.DataFrame(columns=["tracking_number", "customer_name", "customer_phone", "parcel_details", "status", "date_created", "latitude", "longitude"])
+        return pd.DataFrame(columns=["tracking_number", "customer_name", "customer_phone", "customer_email", "parcel_details", "status", "date_created", "latitude", "longitude"])
 
 def generate_tracking_id():
     df = fetch_data()
@@ -25,6 +32,54 @@ def generate_tracking_id():
         tracking_id = f"WL-{chars}"
         if tracking_id not in existing_ids:
             return tracking_id
+
+# SILENT BACKGROUND EMAIL SYSTEM
+def send_tracking_email(receiver_email, customer_name, tracking_number, parcel_details, initial_status):
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = f"World Link Courier Service <{SENDER_EMAIL}>"
+        msg["To"] = receiver_email
+        msg["Subject"] = f"📦 Shipment Registered - {tracking_number} (World Link)"
+        
+        # Professional Courier HTML layout design for inbox views
+        html_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 8px; border-top: 5px solid #0056b3; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                <h2 style="color: #0056b3; text-align: center; margin-top: 0;">🌐 WORLD LINK COURIER SERVICE</h2>
+                <p>Hello <b>{customer_name}</b>,</p>
+                <p>Your package has been successfully processed and registered into our logistics network for dispatch.</p>
+                
+                <div style="background-color: #f8f9fa; padding: 20px; border-left: 4px solid #28a745; margin: 20px 0; border-radius: 4px;">
+                    <h3 style="margin-top: 0; color: #28a745;">📋 Shipment Information</h3>
+                    <table style="width: 100%; font-size: 14px; line-height: 1.6;">
+                        <tr><td><b>Tracking Number:</b></td><td style="font-size: 16px; font-weight: bold; color: #0056b3;">{tracking_number}</td></tr>
+                        <tr><td><b>Current Status:</b></td><td>{initial_status}</td></tr>
+                        <tr><td><b>Details / Destination Address:</b></td><td>{parcel_details}</td></tr>
+                    </table>
+                </div>
+                
+                <p style="text-align: center; margin-top: 30px;">
+                    <a href="https://streamlit.app" style="background-color: #0056b3; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Track Shipment Live</a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #eeeeee; margin-top: 4px;">
+                <p style="font-size: 11px; color: #777; text-align: center;">Thank you for trusting World Link Logistics. This is an automated business notification.</p>
+            </div>
+        </body>
+        </html>
+        """
+        msg.attach(MIMEText(html_body, "html"))
+        
+        # Connect to secure Gmail SMTP Server
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        server.sendmail(SENDER_EMAIL, receiver_email, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Mail delivery subsystem error: {e}")
+        return False
 
 def build_receipt_html(track_id, name, details, date, status):
     return f"""
@@ -83,7 +138,6 @@ if menu == "Customer Tracking View":
                 
                 st.info(f"📍 **Current Location Status:** {status}")
                 
-                # Dynamic Location Mapping Pin
                 try:
                     lat = float(result.iloc[0]["latitude"])
                     lon = float(result.iloc[0]["longitude"])
@@ -118,11 +172,11 @@ elif menu == "Admin / Dispatch Dashboard":
     if admin_password == "Mbappe7979":
         st.subheader("🛠️ World Link Operations Dashboard")
         
-        # Section A: Create a New Parcel with WhatsApp Notification Hook
         st.markdown("### ➕ Register New Customer Parcel")
         with st.form("add_parcel_form", clear_on_submit=True):
             cust_name = st.text_input("Customer Full Name")
             cust_phone = st.text_input("Customer WhatsApp Phone (e.g., +254712345678)")
+            cust_email = st.text_input("Customer Email Address (e.g., customer@email.com)")
             parcel_info = st.text_area("Parcel Details & Delivery Address")
             
             st.markdown("##### 📍 Initial Sorting Location Coordinates")
@@ -135,55 +189,5 @@ elif menu == "Admin / Dispatch Dashboard":
             submitted = st.form_submit_button("Generate World Link Tracking & Save")
             
             if submitted:
-                if cust_name and parcel_info and cust_phone:
+                if cust_name and parcel_info and cust_phone and cust_email:
                     new_track_id = generate_tracking_id()
-                    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    initial_status = "Manifest Created / Awaiting Dispatch at Main Sorting Hub"
-                    
-                    df = fetch_data()
-                    new_row = pd.DataFrame([{
-                        "tracking_number": new_track_id,
-                        "customer_name": cust_name,
-                        "customer_phone": cust_phone,
-                        "parcel_details": parcel_info,
-                        "status": initial_status,
-                        "date_created": current_time,
-                        "latitude": lat_input,
-                        "longitude": lon_input
-                    }])
-                    updated_df = pd.concat([df, new_row], ignore_index=True)
-                    conn.update(spreadsheet=GOOGLE_SHEET_URL, data=updated_df)
-                    
-                    # Generate an instant WhatsApp Message Template
-                    msg_text = f"Hello {cust_name}, your World Link Courier Service parcel has been successfully registered! 📦\n\n📌 Tracking Number: {new_track_id}\n📍 Status: {initial_status}\n🌐 Track Live Here: https://streamlit.app"
-                    encoded_msg = urllib.parse.quote(msg_text)
-                    whatsapp_link = f"https://wa.me{cust_phone.replace('+', '')}?text={encoded_msg}"
-                    
-                    st.session_state["last_added_parcel"] = {
-                        "id": new_track_id, "name": cust_name, "details": parcel_info, "time": current_time, "status": initial_status, "wa_link": whatsapp_link
-                    }
-                    st.success(f"Shipment Successfully Saved to Cloud Database!")
-                else:
-                    st.warning("Please complete Customer Name, WhatsApp Phone, and Parcel Details.")
-
-        # Display WhatsApp notification trigger and receipt below form
-        if "last_added_parcel" in st.session_state:
-            p = st.session_state["last_added_parcel"]
-            
-            st.markdown("---")
-            st.markdown("### 📲 Send Customer Cloud Alert Notification")
-            st.info(f"Click the button below to instantly push the tracking manifest details to your customer via WhatsApp.")
-            
-            # Clickable Notification Link Button
-            st.markdown(f'<a href="{p["wa_link"]}" target="_blank" style="text-decoration:none;"><button style="background-color:#25D366; color:white; border:none; padding:12px 24px; font-size:16px; font-weight:bold; border-radius:6px; cursor:pointer; width:100%;">💬 Send Notification via WhatsApp</button></a>', unsafe_view_html=True)
-            
-            st.markdown("### 🧾 Generated Dispatch Receipt")
-            receipt_code = build_receipt_html(p['id'], p['name'], p['details'], p['time'], p['status'])
-            st.components.v1.html(receipt_code, height=420, scrolling=True)
-            
-            if st.button("Clear Dashboard Registration Preview"):
-                del st.session_state["last_added_parcel"]
-                st.rerun()
-
-        # Section B: Update Status AND Pin Location Live
-        st.markdown("### 🔄 Update Live Parcel Location Pin & Status")
