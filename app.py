@@ -5,7 +5,7 @@ import string
 import sqlite3
 from datetime import datetime
 
-# --- 📦 BULLETPROOF LOCAL DATABASE SETUP ---
+# --- DATABASE SETUP ---
 def init_db():
     conn = sqlite3.connect("world_link_local.db")
     cursor = conn.cursor()
@@ -25,7 +25,6 @@ def init_db():
 
 init_db()
 
-# High-speed data puller from local offline storage file
 def fetch_local_data():
     conn = sqlite3.connect("world_link_local.db")
     df = pd.read_sql_query("SELECT * FROM parcels", conn)
@@ -72,7 +71,7 @@ def build_receipt_html(track_id, name, details, date, status):
     </div>
     """
 
-# --- STREAMLIT UI CONFIGURATION ---
+# --- STREAMLIT CONFIGURATION ---
 st.set_page_config(page_title="World Link Courier Service", layout="centered", page_icon="📦")
 st.title("🌐 World Link Courier Service")
 st.markdown("##### *Fast, Reliable, and Secure Global Tracking Portal*")
@@ -87,10 +86,8 @@ if menu == "Customer Tracking View":
     if st.button("Track Shipment"):
         if search_id:
             df = fetch_local_data()
-            
             if not df.empty:
                 result = df[df["tracking_number"] == search_id]
-                
                 if not result.empty:
                     st.success("Shipment Located!")
                     status = result.iloc[0]["status"]
@@ -100,7 +97,6 @@ if menu == "Customer Tracking View":
                     
                     st.info(f"📍 **Current Location Status:** {status}")
                     
-                    # Safe map calculation block with zero indentation vulnerabilities
                     lat_val = result.iloc[0]["latitude"]
                     lon_val = result.iloc[0]["longitude"]
                     if pd.notna(lat_val) and pd.notna(lon_val) and lat_val != 0.0 and lon_val != 0.0:
@@ -124,26 +120,21 @@ if menu == "Customer Tracking View":
         else:
             st.warning("Please type in a tracking number first.")
 
-# ----------------- ADMIN DASHBOARD (SECURE ACCESS) -----------------
+# ----------------- ADMIN DASHBOARD -----------------
 elif menu == "Admin / Dispatch Dashboard":
     st.sidebar.markdown("---")
     admin_password = st.sidebar.text_input("Enter Admin Password", type="password")
     
     if admin_password == "Mbappe7979":
         st.subheader("🛠️ World Link Operations Dashboard")
-        
         st.markdown("### ➕ Register New Customer Parcel")
+        
         with st.form("add_parcel_form", clear_on_submit=True):
             cust_name = st.text_input("Customer Full Name")
             parcel_info = st.text_area("Parcel Details & Delivery Address")
-            
             st.markdown("##### 📍 Initial Sorting Location Coordinates")
-            col1, col2 = st.columns(2)
-            with col1:
-                lat_input = st.text_input("Initial Latitude (Optional)", value="-1.2841")
-            with col2:
-                lon_input = st.text_input("Initial Longitude (Optional)", value="36.8155")
-                
+            lat_input = st.text_input("Initial Latitude (Optional)", value="-1.2841")
+            lon_input = st.text_input("Initial Longitude (Optional)", value="36.8155")
             submitted = st.form_submit_button("Generate World Link Tracking & Save")
             
             if submitted:
@@ -151,14 +142,12 @@ elif menu == "Admin / Dispatch Dashboard":
                     new_track_id = generate_tracking_id()
                     current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
                     initial_status = "Manifest Created / Awaiting Dispatch at Main Sorting Hub"
-                    
                     try:
                         lat_val = float(lat_input)
                         lon_val = float(lon_input)
                     except:
                         lat_val, lon_val = 0.0, 0.0
                     
-                    # Direct, instant local database logging
                     conn = sqlite3.connect("world_link_local.db")
                     cursor = conn.cursor()
                     cursor.execute("""
@@ -180,11 +169,9 @@ elif menu == "Admin / Dispatch Dashboard":
             p = st.session_state["last_added_parcel"]
             st.markdown("---")
             st.info(f"👉 **Tracking Number Created:** `{p['id']}` (Give this to your customer)")
-            
             st.markdown("### 🧾 Generated Dispatch Receipt")
             receipt_code = build_receipt_html(p['id'], p['name'], p['details'], p['time'], p['status'])
             st.components.v1.html(receipt_code, height=420, scrolling=True)
-            
             if st.button("Clear Dashboard Registration Preview"):
                 del st.session_state["last_added_parcel"]
                 st.rerun()
@@ -206,7 +193,17 @@ elif menu == "Admin / Dispatch Dashboard":
             ])
             
             st.markdown("##### 📍 Pin Current Location Coordinates")
-            col3, col4 = st.columns(2)
-            with col3:
-                update_lat = st.text_input("Current Pin Latitude", value=str(current_row.iloc[0]["latitude"]))
-            with col4:
+            update_lat = st.text_input("Current Pin Latitude", value=str(current_row.iloc[0]["latitude"]))
+            update_lon = st.text_input("Current Pin Longitude", value=str(current_row.iloc[0]["longitude"]))
+            
+            if st.button("Commit Status & Pin Update"):
+                try:
+                    u_lat = float(update_lat)
+                    u_lon = float(update_lon)
+                except:
+                    u_lat, u_lon = 0.0, 0.0
+                    
+                conn = sqlite3.connect("world_link_local.db")
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE parcels 
