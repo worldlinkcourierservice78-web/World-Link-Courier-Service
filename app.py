@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 import random
 import string
-import httpx
+import urllib.parse
+import urllib.request
+import json
 from datetime import datetime
 
 # --- 🌐 PERMANENT SUPABASE CLOUD DATABASE SETUP ---
@@ -12,12 +14,15 @@ SUPABASE_KEY = "PASTE_YOUR_COPIED_ANON_PUBLIC_KEY_HERE"
 
 def fetch_cloud_data():
     try:
-        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
-        response = httpx.get(f"{SUPABASE_URL}/rest/v1/parcels?select=*", headers=headers)
-        if response.status_code == 200:
-            return pd.DataFrame(response.json())
-        return pd.DataFrame()
-    except:
+        url = f"{SUPABASE_URL}/rest/v1/parcels?select=*"
+        req = urllib.request.Request(url)
+        req.add_header("apikey", SUPABASE_KEY)
+        req.add_header("Authorization", f"Bearer {SUPABASE_KEY}")
+        
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            return pd.DataFrame(data)
+    except Exception as e:
         return pd.DataFrame()
 
 def generate_tracking_id():
@@ -133,8 +138,18 @@ if menu == "Admin / Dispatch Dashboard":
                     "sender_name": s_name, "sender_address": s_addr
                 }
                 
-                headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json", "Prefer": "return=representation"}
-                httpx.post(f"{SUPABASE_URL}/rest/v1/parcels", json=payload, headers=headers)
+                try:
+                    url = f"{SUPABASE_URL}/rest/v1/parcels"
+                    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), method="POST")
+                    req.add_header("apikey", SUPABASE_KEY)
+                    req.add_header("Authorization", f"Bearer {SUPABASE_KEY}")
+                    req.add_header("Content-Type", "application/json")
+                    req.add_header("Prefer", "return=representation")
+                    
+                    with urllib.request.urlopen(req) as resp:
+                        pass
+                except Exception as e:
+                    pass
                 
                 st.session_state["last_saved_id"] = new_id
                 st.success(f"📦 Tracking Generated and Saved Permanently! Code: {new_id}")
@@ -148,11 +163,3 @@ if menu == "Admin / Dispatch Dashboard":
                 p = df_recent[df_recent["tracking_number"] == st.session_state["last_saved_id"]]
                 if not p.empty:
                     st.markdown("### 🧾 Official Generated Dispatch Receipt")
-                    receipt_code = build_premium_receipt(str(p.iloc[0]['tracking_number']), str(p.iloc[0]['customer_name']), str(p.iloc[0]['parcel_details']), str(p.iloc[0]['date_created']), str(p.iloc[0]['status']), str(p.iloc[0]['sender_name']), str(p.iloc[0]['sender_address']), str(p.iloc[0]['current_location_text']))
-                    st.components.v1.html(receipt_code, height=560, scrolling=True)
-            if st.button("Clear Receipt Preview"):
-                del st.session_state["last_saved_id"]
-                st.rerun()
-
-        st.markdown("### 🔄 Update Live Parcel Location Pin & Status")
-        all_parcels = fetch_cloud_data()
